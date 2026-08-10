@@ -170,7 +170,8 @@ AXON/
 │   ├── axon-tools/     ✅ 完成   # ToolRegistry + web_search/shell/memory/http_fetch/code_exec + build_registry
 │   ├── axon-runtime/   ✅ 完成   # AgentExecutor + GenerationPipeline（LLM↔Tool 循环 + max_iterations）
 │   ├── axon-protocol/  ✅ 完成   # OpenAI 兼容 API 类型 + AXON 扩展类型
-│   └── axon-server/    ✅ 完成   # main.rs + axum 路由 + CLI + 配置热重载 + handlers
+│   ├── axon-ratelimit/ ✅ 完成   # 两阶段限流（pre-commit + post-deduct）+ 滑动窗口 + 本地 store
+│   └── axon-server/    ✅ 完成   # main.rs + axum 路由 + CLI + 配置热重载 + handlers + 限流集成
 ├── ui/                 🟡 代码就绪（待 CI 验证）  # React 18 + Vite 5 + TS + TailwindCSS 3，暗色主题
 │   ├── package.json / vite.config.ts / tsconfig*.json / tailwind.config.js / postcss.config.js
 │   ├── index.html / src/main.tsx / src/index.css
@@ -201,7 +202,7 @@ AXON/
 - **axon-tools**：`registry.rs`（ToolProvider trait + ToolRegistry + ToolResult/ToolContext/ToolInfo + schemas_for）、`web_search.rs`（DuckDuckGo HTML 解析 + 内置 urlencoding + 8 个解析单元测试）、`shell.rs`（带超时 + 白名单）、`memory.rs`（走 axon-store KV）、`http_fetch.rs`（带超时 + 截断保护）、`code_exec.rs`（python/javascript）、`lib.rs`（build_registry 工厂）。
 - **axon-runtime**：`executor.rs`（AgentExecutor + invoke/invoke_stream + InvokeResult/ToolCallRecord + 消息持久化 + 用量记录）、`pipeline.rs`（GenerationPipeline + LLM↔Tool 循环 + max_iterations 守护）。
 - **axon-protocol**：`openai.rs`（ChatCompletionRequest/Response/Chunk + ModelsResponse + ModelObject）、`axon.rs`（InvokeAgentRequest/Response + AgentInfo + Conversation/Message Response + Health/Status/UsageStats/ToolInfo/ErrorResponse）。
-- **axon-server**：`main.rs`（clap CLI + tracing init + 配置加载 + axum serve）、`app.rs`（AppState + reload_config）、`config_watcher.rs`（notify 热重载）、`handlers/`（chat/agents/conversations/system 四组 handler，覆盖 OpenAI 兼容直通 + 智能体 invoke + 对话 CRUD + healthz/readyz/status/metrics/tools/usage）。
+- **axon-server**：`main.rs`（clap CLI + tracing init + 配置加载 + axum serve）、`app.rs`（AppState + reload_config + `limiter: Arc<Limiter>`）、`config_watcher.rs`（notify 热重载）、`handlers/`（chat/agents/conversations/system 四组 handler，覆盖 OpenAI 兼容直通 + 智能体 invoke + 对话 CRUD + healthz/readyz/status/metrics/tools/usage + 限流集成）。
 - workspace 根 `Cargo.toml`、各 crate `Cargo.toml`、release profile、`rust-toolchain.toml`、`config.example.yaml`、`LICENSE`、`.gitignore`。
 - **ui/ 前端（v0.5，代码就绪待 CI 验证）**：React 18 + Vite 5 + TypeScript + TailwindCSS 3 + react-router-dom 6，暗色主题。`api/{types,client}.ts` 对接 axon-protocol 全部类型与 14 条路由；`hooks/useAgentStream.ts` 手写 SSE 解析（跨 chunk、`data:` 行、`[DONE]` 哨兵）+ 事件累加器（text/thought/tool_calls/usage/finish）；`hooks/useFetch.ts` 数据加载；`components/{Sidebar,Layout,ui}.tsx` 侧边栏 + 布局 + UI 原语（PageHeader/Card/Stat/Spinner/EmptyState/ErrorBanner）；`pages/{Dashboard,Chat,Agents,Models,Settings}.tsx` 五页面（仪表盘=status+usage+agents 概览；对话=选 agent+历史+SSE 流式+发送/停止；智能体=只读列表+详情；模型=只读列表+per-model 用量；设置=status+tools+Prometheus metrics）。vite 产物到 `ui/dist` 供后续 `include_dir!` 嵌入。
 - **CI（`.github/workflows/ci.yml`）**：`rust` job（fmt --check / clippy -D warnings / test --workspace / release build / 二进制 < 50MB 断言）+ `ui` job（npm install / tsc --noEmit / vite build / 上传 dist artifact）。push 到 main 或 PR 触发。**2026-08-10 经 10 次 push→据报错修复迭代循环后 CI 全绿**（rust 3m20s + ui 28s，run 31379331258），修复内容：async-stream 0.8→0.3（crates.io 无 0.8）、clippy derivable_impls（AxonConfig/ChatOptions derive Default）、dead_code（删 AnthropicStreamEvent.index、HttpFetchTool.timeout_ms）、unused imports（axon-protocol/axon-runtime/axon-server）、From<rusqlite::Error>（axon-core 加 optional sqlite feature，axon-store 启用）、OptionalRow 关联类型、axon-server 缺 anyhow 依赖、invoke_stream 返回 impl Stream 需 Box::pin、AppState.tools 改 ArcSwap<Arc<ToolRegistry>>、config_watcher config_path move 后再用。
@@ -256,6 +257,17 @@ AXON/
 - 路由：OpenAI 兼容 `/v1/chat/completions` `/v1/models`、智能体 `/v1/agents` `/v1/agents/:id` `/v1/agents/:id/invoke`、对话 `/v1/conversations`、运维 `/healthz /readyz /status /metrics /v1/tools /v1/usage`。
 - 流式响应统一用 axum SSE（`axum::response::sse`）。
 - 配置热重载：`config_watcher::spawn_watcher` 用 notify 监听 → `AppState::reload_config`。
+- 限流：`AppState.limiter: Arc<Limiter>`，chat handler 对 `resolve_model(req.model).rate_limit` 非空且非 unrestricted 的模型执行 `pre_commit("model:{name}", rl)` → 429 on `RateLimitError`；非流式 `commit_tokens(total_tokens)`，流式 `into_stream_hold()` + `add_tokens_post_stream(key, total_tokens)`。
+
+### axon-ratelimit（已固化，adapted from aisix-ratelimit）
+- `Limiter::new() / with_store(Arc<dyn RateStore>) / local_with_clock(C)`。
+- `pre_commit(key, &RateLimitConfig) -> Result<Reservation, RateLimitError>`：并发槽 + RPS/RPM/RPH/RPD check-and-increment + TPM/TPD check-only。
+- `Reservation::commit_tokens(u64)`：post-deduct TPM/TPD + 释放并发槽；Drop 未 commit 则仅释放并发槽。
+- `MultiReservation::new(vec) / merge / into_stream_hold() -> StreamConcurrencyGuard`：流式路径并发槽持有至 guard drop。
+- `Limiter::add_tokens_post_stream(key, tokens)`：流式 post-stream token 计入。
+- `Limiter::peek(key, &RateLimitConfig) -> Option<RateLimitStatus>`：只读快照（x-ratelimit-* headers）。
+- `RateLimitConfig`：tpm/tpd/rps/rpm/rph/rpd（Option<u64>）+ concurrency（Option<u32>）+ `is_unrestricted()`。
+- `RateLimitError`：Requests{scope, retry_after_secs} / Tokens{scope, retry_after_secs} / Concurrency。
 
 ## 6. 下一步任务（按优先级，逐项勾选）
 
@@ -298,7 +310,8 @@ AXON/
 - [x] `include_dir!` 宏将 `ui/dist` 嵌入 axon-server 二进制（feature `embed-ui`，default 启用）+ axum 静态文件服务路由 `/ui` `/ui/` `/ui/*path`（mime 推断 + SPA fallback index.html）。
 - [x] 验收：`git push` 后 GitHub CI rust + ui 两 job 全绿（run 31384489805，rust 1m27s + ui 21s，2026-08-10）。浏览器打开 `http://localhost:8080/ui/` 由二进制内嵌静态资源服务（需运行 `axon --config config.example.yaml` 后实测）。
 - [x] **v0.6 可观测性**：tracing-subscriber 初始化（EnvFilter）+ `/metrics` Prometheus 文本输出（requests/tokens/duration per-model，从 store usage_stats）+ `/status /healthz /readyz` + 结构化 JSON 日志选项（`observability.log_format: plain|json`，CLI/env 可覆盖，main.rs 先加载 config 后 init tracing）。CI 全绿（run 31396860258）。
-- 其余 v0.7/v0.9/v1.0 见 `AXON_PROJECT_PLAN.md` §4.2。按需推进。
+- [x] **v0.7 限流**：新建 `axon-ratelimit` crate（adapted from aisix-ratelimit，drop redis：clock.rs + window.rs + error.rs + limiter.rs + store/{mod,local}.rs，~1200 行）；axon-core `RateLimitConfig` 升级为 7 字段（tpm/tpd/rps/rpm/rph/rpd/concurrency）+ `is_unrestricted()` + `RateLimitScope` enum；axon-server `AppState` 加 `Limiter`，chat handler 集成 `pre_commit`（429 on exceeded）+ `commit_tokens`（非流式）+ `StreamConcurrencyGuard` + `add_tokens_post_stream`（流式）；config.example.yaml 加 rate_limit 示例。CI 全绿（run 31410795834，1m59s）。
+- 其余 v0.9/v1.0 见 `AXON_PROJECT_PLAN.md` §4.2。按需推进。
 
 ## 7. 编码约定（强制）
 
@@ -347,6 +360,7 @@ cd ui && pnpm build                    # 产物到 ui/dist，供 include_dir! �
 
 ## 9. 变更日志（追加新行，最新在上）
 
+- 2026-08-11 **v0.7 限流完成（CI 全绿）**：新建 `axon-ratelimit` crate（adapted from `aisix-ratelimit`，drop redis：`clock.rs` + `window.rs` verbatim + `error.rs` + `limiter.rs` + `store/{mod,local}.rs`，aisix_core→axon_core，~1200 行含 30+ 测试）；axon-core `RateLimitConfig` 从 2 字段（rps/rpm u32）升级为 7 字段（tpm/tpd/rps/rpm/rph/rpd u64 + concurrency u32）+ `is_unrestricted()` + `RateLimitScope` enum（Requests/Tokens + Display）；axon-server `AppState` 加 `limiter: Arc<Limiter>`，chat handler 集成两阶段限流：`pre_commit`（429 on exceeded）+ `commit_tokens`（非流式 post-deduct）+ `StreamConcurrencyGuard`（流式并发槽持有至 stream 结束）+ `add_tokens_post_stream`（流式 token 记入）；config.example.yaml 加 rate_limit 示例（rpm/tpm/concurrency）；workspace 加 `dashmap = "6"`。CI 经 3 轮修复循环全绿（run 31410795834，1m59s）：(1) `cargo fmt` 失败（import 排序 + peek 单行 + closure 单行）→ 修；(2) clippy `dead_code`（`Dim`/`request_dims`/`token_dims` 仅 redis 用）→ 删；(3) 全绿。至此 v0.7 限流完成。下一步：Agora 前后端交互契约对齐（ThoughtChunk title/signature、ToolCallUpdate、reasoning 字段等）或 v0.9 稳定化。
 - 2026-08-10 **E2E 测试完成（CI 全绿）**：axon-server 重构为 lib + bin（加 `src/lib.rs` 暴露 `build_router` + `AppState`，main.rs 用 `axon_server::`）；新建 `tests/e2e/` crate（依赖 axon-server default-features=false + axum + reqwest + tempfile），9 个 E2E 测试（真实 TcpListener bind 127.0.0.1:0 + reqwest HTTP 调用）：healthz/readyz/status/metrics/list_agents/list_tools/usage/list_models/conversation_create_and_list。修复：(1) tests/e2e 缺 axum 依赖；(2) conversation POST 500 —— `tempfile::tempdir()` 在 start() 返回时 drop 删除 db 文件，加 `std::mem::forget(dir)` 保持存活；(3) 删 feature-unstable ui 测试（Cargo feature unification 导致 embed-ui 在 workspace test 时启用）。CI 全绿（run 31401226428，1m41s）。
 - 2026-08-10 **v0.6 可观测性：结构化 JSON 日志选项**：axon-core ObservabilityConfig 加 `log_format: String`（"plain"|"json"，默认 plain）+ default_log_format()；axon-server main.rs 调整启动顺序为先加载 config 再 init tracing（config 加载失败用 eprintln 兜底），据 `config.observability.log_format` + `AXON_LOG_FORMAT` env 选 `.json()` 或 plain fmt；config.example.yaml 加 log_format 示例。CI 全绿（run 31396860258，1m18s）。至此 v0.6 可观测性基本完成（tracing + Prometheus /metrics + JSON 日志选项）。下一步：v0.7 高级路由（限流，复用 aisix-ratelimit）。
 - 2026-08-10 **P4 移动端适配完成**：交叉编译产物 axon 二进制 **5.1M**（远低于 30MB 目标 / 50MB 硬约束），APK `axon-release-unsigned.apk` **5.0M**。新增 `android/termux/install-termux.sh`（从 CI artifact 或源码安装 + 默认配置生成 + 启动提示）。P4 全部勾选（启动内存 < 150MB 待真机实测）。下一步：P6 可观测性（Prometheus 指标 + 结构化日志，复用 aisix telemetry.rs）或 P7 高级路由。
