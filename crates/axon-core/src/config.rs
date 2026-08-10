@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::{AgentDefinition, ModelDefinition, RouteDefinition, ToolDefinition};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AxonConfig {
     pub server: ServerConfig,
@@ -17,21 +17,6 @@ pub struct AxonConfig {
     pub agents: Vec<AgentDefinition>,
     #[serde(default)]
     pub tools: Vec<ToolDefinition>,
-}
-
-impl Default for AxonConfig {
-    fn default() -> Self {
-        AxonConfig {
-            server: ServerConfig::default(),
-            gateway: GatewayConfig::default(),
-            storage: StorageConfig::default(),
-            observability: ObservabilityConfig::default(),
-            models: vec![],
-            routes: vec![],
-            agents: vec![],
-            tools: vec![],
-        }
-    }
 }
 
 impl AxonConfig {

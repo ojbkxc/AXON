@@ -190,7 +190,7 @@ pub struct TokenUsage {
     pub total_tokens: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ChatOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -200,17 +200,6 @@ pub struct ChatOptions {
     pub tools: Vec<ToolSchema>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
-}
-
-impl Default for ChatOptions {
-    fn default() -> Self {
-        ChatOptions {
-            temperature: None,
-            max_tokens: None,
-            tools: vec![],
-            stream: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
