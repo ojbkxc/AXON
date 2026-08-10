@@ -201,7 +201,7 @@ AXON/
 - **axon-server**：`main.rs`（clap CLI + tracing init + 配置加载 + axum serve）、`app.rs`（AppState + reload_config）、`config_watcher.rs`（notify 热重载）、`handlers/`（chat/agents/conversations/system 四组 handler，覆盖 OpenAI 兼容直通 + 智能体 invoke + 对话 CRUD + healthz/readyz/status/metrics/tools/usage）。
 - workspace 根 `Cargo.toml`、各 crate `Cargo.toml`、release profile、`rust-toolchain.toml`、`config.example.yaml`、`LICENSE`、`.gitignore`。
 - **ui/ 前端（v0.5，代码就绪待 CI 验证）**：React 18 + Vite 5 + TypeScript + TailwindCSS 3 + react-router-dom 6，暗色主题。`api/{types,client}.ts` 对接 axon-protocol 全部类型与 14 条路由；`hooks/useAgentStream.ts` 手写 SSE 解析（跨 chunk、`data:` 行、`[DONE]` 哨兵）+ 事件累加器（text/thought/tool_calls/usage/finish）；`hooks/useFetch.ts` 数据加载；`components/{Sidebar,Layout,ui}.tsx` 侧边栏 + 布局 + UI 原语（PageHeader/Card/Stat/Spinner/EmptyState/ErrorBanner）；`pages/{Dashboard,Chat,Agents,Models,Settings}.tsx` 五页面（仪表盘=status+usage+agents 概览；对话=选 agent+历史+SSE 流式+发送/停止；智能体=只读列表+详情；模型=只读列表+per-model 用量；设置=status+tools+Prometheus metrics）。vite 产物到 `ui/dist` 供后续 `include_dir!` 嵌入。
-- **CI（`.github/workflows/ci.yml`）**：`rust` job（fmt --check / clippy -D warnings / test --workspace / release build / 二进制 < 50MB 断言）+ `ui` job（npm install / tsc --noEmit / vite build / 上传 dist artifact）。push 到 main 或 PR 触发。
+- **CI（`.github/workflows/ci.yml`）**：`rust` job（fmt --check / clippy -D warnings / test --workspace / release build / 二进制 < 50MB 断言）+ `ui` job（npm install / tsc --noEmit / vite build / 上传 dist artifact）。push 到 main 或 PR 触发。**2026-08-10 经 10 次 push→据报错修复迭代循环后 CI 全绿**（rust 3m20s + ui 28s，run 31379331258），修复内容：async-stream 0.8→0.3（crates.io 无 0.8）、clippy derivable_impls（AxonConfig/ChatOptions derive Default）、dead_code（删 AnthropicStreamEvent.index、HttpFetchTool.timeout_ms）、unused imports（axon-protocol/axon-runtime/axon-server）、From<rusqlite::Error>（axon-core 加 optional sqlite feature，axon-store 启用）、OptionalRow 关联类型、axon-server 缺 anyhow 依赖、invoke_stream 返回 impl Stream 需 Box::pin、AppState.tools 改 ArcSwap<Arc<ToolRegistry>>、config_watcher config_path move 后再用。
 
 ### 🟡 已知问题
 - **离线编译受限**：当前环境缺 `rusqlite`/`r2d2`/`r2d2_sqlite`/`clap`/`notify`/`include_dir`/`async-stream 0.8`/`axum 0.7`（缓存仅有 axum 0.6 / async-stream 0.3），无法本地 `cargo check --workspace`。**编译验证已改为通过 GitHub CI 进行**（见 §R0.7/R0.8/§R2）：`git push` 触发 `.github/workflows/ci.yml`，据 CI 报错迭代修复至全绿。axon-core 22 个单元测试在联网 CI 中随 `cargo test --workspace` 一起跑。
@@ -290,8 +290,9 @@ AXON/
 - [x] `ui/` 前端项目基座（React + Vite + TS + TailwindCSS + 暗色主题）。
 - [x] 页面：仪表盘（概览 + 用量统计）/ 对话（实时 SSE 流式）/ 智能体管理（只读列表 + 详情）/ 模型配置（只读列表 + per-model 用量）/ 设置页（status + tools + metrics）。
 - [x] `.github/workflows/ci.yml`：rust + ui 两 job。
+- [x] 验收：`git push` 后 GitHub CI rust + ui 两 job 全绿（run 31379331258，rust 3m20s + ui 28s，2026-08-10 经 10 次迭代修复）。
 - [ ] `include_dir!` 宏将 `ui/dist` 嵌入 axon-server 二进制 + axum 静态文件服务路由 `/ui/*`。
-- [ ] 验收：`git push` 后 GitHub CI rust + ui 两 job 全绿；浏览器打开 `http://localhost:8080/ui/` 能看到管理界面并能创建对话（需先接入静态资源服务）。
+- [ ] 浏览器打开 `http://localhost:8080/ui/` 能看到管理界面并能创建对话（需先接入静态资源服务）。
 - 其余 v0.6/v0.7/v0.8/v0.9/v1.0 见 `AXON_PROJECT_PLAN.md` §4.2。按需推进。
 
 ## 7. 编码约定（强制）
@@ -341,6 +342,7 @@ cd ui && pnpm build                    # 产物到 ui/dist，供 include_dir! �
 
 ## 9. 变更日志（追加新行，最新在上）
 
+- 2026-08-10 **CI 全绿里程碑**：经 10 次 `git push → gh run view --log-failed → 据报错修复 → 再 push` 循环（§R2.3），GitHub CI rust+ui 两 job 全绿（run 31379331258）。修复：async-stream 0.8→0.3、clippy derivable_impls/dead_code/unused-imports、From<rusqlite::Error>（axon-core optional sqlite feature）、OptionalRow 关联类型、axon-server 缺 anyhow、invoke_stream Box::pin、AppState.tools ArcSwap<Arc<ToolRegistry>>、config_watcher config_path clone。CI node-version 升 24 消 deprecation。本地全程未编译（离线），纯靠 GitHub CI 验证，印证 §R0.7/R0.8 闭环可行。下一步：接入 `include_dir!("ui/dist")` + axum 静态路由 `/ui/*`，再 push 让 CI 验证。
 - 2026-08-10 v0.5 Web UI 代码就绪 + GitHub CI workflow：新建 `ui/`（React18+Vite5+TS+Tailwind3+react-router6，暗色主题）含 api/{types,client}.ts 对接 axon-protocol 全部类型与 14 路由、hooks/useAgentStream.ts 手写 SSE 解析+事件累加器、hooks/useFetch.ts、components/{Sidebar,Layout,ui}.tsx、pages/{Dashboard,Chat,Agents,Models,Settings}.tsx 五页面、App.tsx 路由、基座配置 9 文件；新建 `.github/workflows/ci.yml`（rust job: fmt/clippy/test/release/体积<50MB 断言；ui job: npm install/tsc --noEmit/vite build/upload dist）。未本地编译（按 §R0.7 编译验证走 GitHub CI）。回写 §3/§4/§6。下一步：`git push` 触发 CI 据报错修复至全绿；接入 `include_dir!("ui/dist")` + axum 静态路由 `/ui/*`。
 - 2026-08-10 新增 §R0.9 自动推进项目规则：用户说「自动继续」/「继续」/「auto」或未叫停时，代理必须自主连续推进任务，不每步询问；仅方向性分歧/破坏性操作/违反硬约束/信息严重不足才问；停下汇报附三段式摘要。未改代码，仅改 AGENTS.md。下一步：建 CI workflow + 推进 ui/ 前端。
 - 2026-08-10 新增 §R0.7/R0.8 + §R2 GitHub CI 编译验证策略：因本地离线缺依赖无法 `cargo check/build/test`，强制规定编译验证必须 `git push` 到 GitHub 由 CI 执行；CI 失败必须据报错本地修复后再 push，循环至全绿；CI 全绿是子任务完成的唯一编译验证判据；附 CI 必须步骤（fmt/clippy/test/release build/体积）与迭代修复流程。未改代码，仅改 AGENTS.md。下一步：建 `.github/workflows/ci.yml` 让规则生效，并推进 ui/ 前端。
