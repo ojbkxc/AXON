@@ -174,8 +174,6 @@ struct AnthropicStreamEvent {
     #[serde(default)]
     content_block: Option<AnthropicContentBlock>,
     #[serde(default)]
-    index: Option<u32>,
-    #[serde(default)]
     partial_json: Option<String>,
 }
 
