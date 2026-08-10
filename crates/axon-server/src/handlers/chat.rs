@@ -58,6 +58,11 @@ pub async fn chat_completions(
         max_tokens: req.max_tokens,
         tools: req.tools.clone(),
         stream: Some(req.stream),
+        top_p: req.top_p,
+        frequency_penalty: req.frequency_penalty,
+        presence_penalty: req.presence_penalty,
+        reasoning_effort: req.reasoning_effort,
+        service_tier: req.service_tier,
     };
 
     if req.stream {

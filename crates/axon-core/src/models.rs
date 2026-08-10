@@ -242,6 +242,16 @@ pub struct ChatOptions {
     pub tools: Vec<ToolSchema>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frequency_penalty: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presence_penalty: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -444,5 +454,10 @@ mod tests {
         assert!(opts.max_tokens.is_none());
         assert!(opts.tools.is_empty());
         assert!(opts.stream.is_none());
+        assert!(opts.top_p.is_none());
+        assert!(opts.frequency_penalty.is_none());
+        assert!(opts.presence_penalty.is_none());
+        assert!(opts.reasoning_effort.is_none());
+        assert!(opts.service_tier.is_none());
     }
 }

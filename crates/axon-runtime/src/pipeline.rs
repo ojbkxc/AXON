@@ -67,6 +67,7 @@ impl<'a> GenerationPipeline<'a> {
                     max_tokens: agent.max_tokens,
                     tools: tool_schemas,
                     stream: Some(true),
+                    ..Default::default()
                 };
 
                 let stream = match gateway

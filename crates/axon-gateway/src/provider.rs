@@ -51,6 +51,16 @@ struct OpenAiRequest {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tools: Vec<axon_core::ToolSchema>,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frequency_penalty: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    presence_penalty: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "reasoning_effort")]
+    reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "service_tier")]
+    service_tier: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -146,6 +156,11 @@ impl Provider for OpenAiProvider {
             max_tokens: options.max_tokens,
             tools: options.tools.clone(),
             stream: false,
+            top_p: options.top_p,
+            frequency_penalty: options.frequency_penalty,
+            presence_penalty: options.presence_penalty,
+            reasoning_effort: options.reasoning_effort.clone(),
+            service_tier: options.service_tier.clone(),
         };
 
         let resp = self
@@ -196,6 +211,11 @@ impl Provider for OpenAiProvider {
             max_tokens: options.max_tokens,
             tools: options.tools.clone(),
             stream: true,
+            top_p: options.top_p,
+            frequency_penalty: options.frequency_penalty,
+            presence_penalty: options.presence_penalty,
+            reasoning_effort: options.reasoning_effort.clone(),
+            service_tier: options.service_tier.clone(),
         };
 
         let resp = self
