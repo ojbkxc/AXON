@@ -21,6 +21,16 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package.json
+
+      - name: build ui for embedding
+        run: |
+          cd ui && npm install --no-audit --no-fund && npm run build
+
       - name: rustfmt
         run: cargo fmt --all -- --check
 

@@ -144,9 +144,15 @@ fn build_router(state: Arc<AppState>) -> axum::Router {
         .route("/status", get(handlers::system::status))
         .route("/metrics", get(handlers::system::metrics));
 
+    let ui = axum::Router::new()
+        .route("/ui", get(handlers::system::ui_index))
+        .route("/ui/", get(handlers::system::ui_index))
+        .route("/ui/*path", get(handlers::system::ui_asset));
+
     axum::Router::new()
         .merge(api)
         .merge(system)
+        .merge(ui)
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)

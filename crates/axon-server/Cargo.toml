@@ -34,9 +34,10 @@ parking_lot = { workspace = true }
 arc-swap = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
-include_dir = "0.7"
+include_dir = { version = "0.7", optional = true }
 
 [features]
-default = ["web-ui"]
+default = ["web-ui", "embed-ui"]
 web-ui = []
 profiling = []
+embed-ui = ["dep:include_dir"]

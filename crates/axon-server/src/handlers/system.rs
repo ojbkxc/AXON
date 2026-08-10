@@ -107,3 +107,79 @@ pub async fn list_tools(State(state): State<Arc<AppState>>) -> Response {
         .collect();
     Json(info).into_response()
 }
+
+#[cfg(feature = "embed-ui")]
+static UI_DIR: include_dir::Dir = include_dir::Dir::include("../../ui/dist");
+
+#[cfg(feature = "embed-ui")]
+fn serve_ui_path(path: &str) -> Response {
+    use axum::http::{header, StatusCode};
+    let clean = path.trim_start_matches('/');
+    let entry = if clean.is_empty() || clean == "/" {
+        UI_DIR.get_file("index.html")
+    } else {
+        UI_DIR.get_file(clean).or_else(|| {
+            let with_index = format!("{clean}/index.html");
+            UI_DIR.get_file(&with_index)
+        })
+    };
+    match entry {
+        Some(file) => {
+            let mime = mime_for(clean);
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, mime)],
+                file.contents(),
+            )
+                .into_response()
+        }
+        None => (StatusCode::NOT_FOUND, "not found").into_response(),
+    }
+}
+
+#[cfg(feature = "embed-ui")]
+fn mime_for(path: &str) -> &'static str {
+    match path.rsplit('.').next() {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "application/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("json") => "application/json; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("ico") => "image/x-icon",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("map") => "application/json; charset=utf-8",
+        _ => "application/octet-stream",
+    }
+}
+
+#[cfg(feature = "embed-ui")]
+pub async fn ui_index() -> Response {
+    serve_ui_path("index.html")
+}
+
+#[cfg(feature = "embed-ui")]
+pub async fn ui_asset(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
+    serve_ui_path(&path)
+}
+
+#[cfg(not(feature = "embed-ui"))]
+pub async fn ui_index() -> Response {
+    (
+        axum::http::StatusCode::NOT_FOUND,
+        "Web UI not embedded; build with --features embed-ui",
+    )
+        .into_response()
+}
+
+#[cfg(not(feature = "embed-ui"))]
+pub async fn ui_asset(axum::extract::Path(_path): axum::extract::Path<String>) -> Response {
+    (
+        axum::http::StatusCode::NOT_FOUND,
+        "Web UI not embedded; build with --features embed-ui",
+    )
+        .into_response()
+}
