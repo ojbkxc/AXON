@@ -109,7 +109,7 @@ pub async fn list_tools(State(state): State<Arc<AppState>>) -> Response {
 }
 
 #[cfg(feature = "embed-ui")]
-static UI_DIR: include_dir::Dir = include_dir::include_dir!("../../ui/dist");
+static UI_DIR: include_dir::Dir = include_dir::include_dir!("$CARGO_MANIFEST_DIR/../../ui/dist");
 
 #[cfg(feature = "embed-ui")]
 fn serve_ui_path(path: &str) -> Response {
