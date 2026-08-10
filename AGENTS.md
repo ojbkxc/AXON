@@ -181,8 +181,10 @@ AXON/
 │       ├── pages/{Dashboard,Chat,Agents,Models,Settings}.tsx  # 5 页面
 │       └── App.tsx                         # 路由
 ├── .github/workflows/ci.yml  ✅ 就绪  # rust job（fmt/clippy/test/release/体积<50MB）+ ui job（install/typecheck/build/dist artifact）
-├── android/            ❌ 空     # termux/ apk/ NDK/ 脚本
-├── scripts/            ❌ 空     # 构建/安装/交叉编译脚本
+├── android/apk/        🟡 就绪待 CI 验证  # Gradle WebView 壳工程（AGP 8.5.2, arm64-v8a, Java17）
+│   ├── settings.gradle / build.gradle / gradle.properties / proguard-rules.pro
+│   └── src/main/{AndroidManifest.xml, java/com/axon/app/{MainActivity,AxonService}.java, res/values/strings.xml, assets/}
+├── scripts/            🟡 就绪待 CI 验证  # cross-android.sh（cargo-ndk）+ build-apk.sh（gradle）
 ├── tests/e2e/          ❌ 空     # E2E 测试
 └── docs/               ❌ 空     # 文档
 ```
@@ -210,7 +212,7 @@ AXON/
 
 ### ❌ 未完成（按依赖顺序）
 1. **ui/ 嵌入二进制**：✅ `include_dir!("$CARGO_MANIFEST_DIR/../../ui/dist")`（feature `embed-ui`）+ axum 静态路由 `/ui/*`（mime 推断 + SPA fallback），CI rust job 先 build ui 再 cargo build 嵌入。CI 全绿验证（run 31384489805）。
-2. **android/** + **scripts/**：Termux 安装脚本、NDK 交叉编译脚本（`aarch64-linux-android`）、简易 APK 工程。
+2. **android/ + scripts/（v0.8 APK 流水线，代码就绪待 CI 验证）**：`scripts/cross-android.sh`（cargo-ndk 交叉编译 aarch64-linux-android）+ `scripts/build-apk.sh`（gradle assembleRelease）+ `android/apk/` Gradle WebView 壳工程（AGP 8.5.2, namespace com.axon.app, compileSdk 34, minSdk 21, arm64-v8a, Java17；MainActivity 启动 AxonService + WebView 轮询 healthz 后加载 127.0.0.1:8080/ui/；AxonService 前台服务 + 从 assets 提取 axon 二进制 + ProcessBuilder 启动 + 日志转发）+ `.github/workflows/android-apk.yml`（cargo-ndk 交叉编译 + gradle assembleRelease + 命名 AXON-v1.0.1-android-arm64-v8a.apk + 上传 artifact）。**本地静态审查通过**（bin name=axon ✓、config.example.yaml ✓、gradle.properties useAndroidX ✓、AGP 8.5.2/Gradle 8.9/Java17 兼容 ✓、NDK 路径处理 ✓、已去掉 continue-on-error 以符合 §R0.8）。**待网络恢复后 git push 触发 android-apk.yml CI 验证**。
 3. **tests/e2e/**：Vitest + 真实进程，核心路径用例。
 4. **docs/**：README、快速入门、API 参考、部署指南。
 5. **全量编译验证**：✅ GitHub CI rust+ui 两 job 全绿（§R2.3 闭环已跑通，累计 12 次迭代修复）。
@@ -282,9 +284,11 @@ AXON/
 - [ ] 验收：「研究助手」agent 能自主 web_search 并总结（需联网编译后验证）。
 
 ### P4 — v0.4 移动端适配
-- [ ] `scripts/cross-android.sh`（NDK `aarch64-linux-android`）。
-- [ ] 裁剪依赖、验证二进制 < 30MB、启动内存 < 150MB。
+- [x] `scripts/cross-android.sh`（NDK `aarch64-linux-android`）+ `scripts/build-apk.sh`。
+- [x] `android/apk/` Gradle WebView 壳工程 + `.github/workflows/android-apk.yml` APK 流水线（参照 RustSync，cargo-ndk + gradle assembleRelease，产物 AXON-v1.0.1-android-arm64-v8a.apk）。
+- [ ] 裁剪依赖、验证二进制 < 30MB、启动内存 < 150MB（待 APK CI 全绿后实测）。
 - [ ] `android/termux/install-termux.sh` + 运行脚本。
+- [ ] 验收：`git push` 后 android-apk.yml CI 全绿并产出 APK artifact（**待网络恢复后 push 触发**）。
 
 ### P5+ — v0.5 Web UI / v0.6 可观测性 / v0.7 高级路由 / v0.8 APK / v0.9 稳定化 / v1.0 发布
 - [x] `ui/` 前端项目基座（React + Vite + TS + TailwindCSS + 暗色主题）。
@@ -341,6 +345,7 @@ cd ui && pnpm build                    # 产物到 ui/dist，供 include_dir! �
 
 ## 9. 变更日志（追加新行，最新在上）
 
+- 2026-08-10 **v0.8 APK 流水线代码就绪 + 本地静态审查**：新增 `scripts/cross-android.sh`（cargo-ndk 交叉编译 aarch64-linux-android）+ `scripts/build-apk.sh`（gradle assembleRelease）+ `android/apk/` Gradle WebView 壳工程（AGP 8.5.2, arm64-v8a, Java17, MainActivity+AxonService 前台服务启动 axon 二进制 + WebView 加载 127.0.0.1:8080/ui/）+ `.github/workflows/android-apk.yml`（参照 RustSync：setup rust+NDK+cargo-ndk → build ui → cargo ndk 交叉编译 axon → 复制二进制+config 到 assets → setup-java 17 → gradle assembleRelease → 命名 AXON-v1.0.1-android-arm64-v8a.apk → 上传 artifact）。本地静态审查通过（bin name=axon、config.example.yaml、gradle.properties useAndroidX、AGP/Gradle/Java 版本兼容、NDK 路径）；去掉 android-apk.yml 的 continue-on-error 以符合 §R0.8（让失败真实暴露以便据报错修复）。**环境网络阻断**：github.com DNS 被解析到占位 IP 198.18.0.139（RFC 2544 段），gh token 亦失效，git push 10 次重试均失败。改动已 commit（e2d2ba4 + 去掉 continue-on-error），**待网络恢复后 git push 触发 android-apk.yml CI，据报错修复循环至产出 APK artifact**。回写 §3/§4/§6。
 - 2026-08-10 **v0.5 Web UI 嵌入完成 + CI 全绿**：axon-server 加 `embed-ui` feature（include_dir optional）+ `include_dir!("$CARGO_MANIFEST_DIR/../../ui/dist")` 嵌入 ui/dist；handlers/system.rs 加 `ui_index`/`ui_asset`（mime 推断 + SPA fallback index.html）+ `#[cfg(not(feature="embed-ui"))]` 占位；main.rs 加 `/ui` `/ui/` `/ui/*path` 路由；CI rust job 先 build ui 再 cargo build 嵌入。include_dir! 路径关键：宏相对 cwd 而非 CARGO_MANIFEST_DIR，须用 `$CARGO_MANIFEST_DIR/../../ui/dist`。CI 全绿（run 31384489805，rust 1m27s + ui 21s）。至此 v0.5 Web UI 代码 + 嵌入 + CI 验证全部完成。下一步：P4 移动端适配（scripts/cross-android.sh + android/termux/）或 P6 可观测性。
 - 2026-08-10 **CI 全绿里程碑**：经 10 次 `git push → gh run view --log-failed → 据报错修复 → 再 push` 循环（§R2.3），GitHub CI rust+ui 两 job 全绿（run 31379331258）。修复：async-stream 0.8→0.3、clippy derivable_impls/dead_code/unused-imports、From<rusqlite::Error>（axon-core optional sqlite feature）、OptionalRow 关联类型、axon-server 缺 anyhow、invoke_stream Box::pin、AppState.tools ArcSwap<Arc<ToolRegistry>>、config_watcher config_path clone。CI node-version 升 24 消 deprecation。本地全程未编译（离线），纯靠 GitHub CI 验证，印证 §R0.7/R0.8 闭环可行。下一步：接入 `include_dir!("ui/dist")` + axum 静态路由 `/ui/*`，再 push 让 CI 验证。
 - 2026-08-10 v0.5 Web UI 代码就绪 + GitHub CI workflow：新建 `ui/`（React18+Vite5+TS+Tailwind3+react-router6，暗色主题）含 api/{types,client}.ts 对接 axon-protocol 全部类型与 14 路由、hooks/useAgentStream.ts 手写 SSE 解析+事件累加器、hooks/useFetch.ts、components/{Sidebar,Layout,ui}.tsx、pages/{Dashboard,Chat,Agents,Models,Settings}.tsx 五页面、App.tsx 路由、基座配置 9 文件；新建 `.github/workflows/ci.yml`（rust job: fmt/clippy/test/release/体积<50MB 断言；ui job: npm install/tsc --noEmit/vite build/upload dist）。未本地编译（按 §R0.7 编译验证走 GitHub CI）。回写 §3/§4/§6。下一步：`git push` 触发 CI 据报错修复至全绿；接入 `include_dir!("ui/dist")` + axum 静态路由 `/ui/*`。

@@ -12,7 +12,6 @@ jobs:
   build-android-apk:
     name: Build Android APK (arm64-v8a)
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       APP_NAME: AXON
       APP_VERSION: "1.0.1"
