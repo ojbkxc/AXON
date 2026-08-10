@@ -67,13 +67,35 @@ impl ModelDefinition {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RateLimitConfig {
-    #[serde(default)]
-    pub rps: Option<u32>,
-    #[serde(default)]
-    pub rpm: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tpm: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tpd: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rps: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rpm: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rph: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rpd: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub concurrency: Option<u32>,
+}
+
+impl RateLimitConfig {
+    pub const fn is_unrestricted(&self) -> bool {
+        self.tpm.is_none()
+            && self.tpd.is_none()
+            && self.rps.is_none()
+            && self.rpm.is_none()
+            && self.rph.is_none()
+            && self.rpd.is_none()
+            && self.concurrency.is_none()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

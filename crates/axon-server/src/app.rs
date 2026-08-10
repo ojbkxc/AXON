@@ -4,6 +4,7 @@ use arc_swap::ArcSwap;
 
 use axon_core::AxonConfig;
 use axon_gateway::EmbeddedGateway;
+use axon_ratelimit::Limiter;
 use axon_runtime::AgentExecutor;
 use axon_store::Store;
 use axon_tools::ToolRegistry;
@@ -14,6 +15,7 @@ pub struct AppState {
     pub store: Arc<Store>,
     pub tools: ArcSwap<Arc<ToolRegistry>>,
     pub executor: ArcSwap<AgentExecutor>,
+    pub limiter: Arc<Limiter>,
     pub start_time: std::time::Instant,
     pub working_dir: std::path::PathBuf,
 }
@@ -43,6 +45,7 @@ impl AppState {
             store,
             tools: ArcSwap::from_pointee(tools_arc),
             executor: ArcSwap::from_pointee(executor),
+            limiter: Arc::new(Limiter::new()),
             start_time: std::time::Instant::now(),
             working_dir,
         });

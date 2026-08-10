@@ -8,6 +8,7 @@ members = [
     "crates/axon-runtime",
     "crates/axon-protocol",
     "crates/axon-server",
+    "crates/axon-ratelimit",
     "tests/e2e",
 ]
 
@@ -40,6 +41,7 @@ clap = { version = "4", features = ["derive"] }
 parking_lot = "0.12"
 arc-swap = "1"
 once_cell = "1"
+dashmap = "6"
 
 [profile.release]
 lto = "thin"

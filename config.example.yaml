@@ -27,6 +27,10 @@ models:
     model_name: "gpt-4o"
     api_key_env: "OPENAI_API_KEY"
     api_base: "https://api.openai.com/v1"
+    rate_limit:
+      rpm: 60
+      tpm: 100000
+      concurrency: 5
 
   - name: "claude-sonnet"
     provider: "anthropic"

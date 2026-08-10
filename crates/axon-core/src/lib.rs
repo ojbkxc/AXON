@@ -5,5 +5,5 @@ pub mod error;
 pub mod models;
 
 pub use config::AxonConfig;
-pub use error::{AxonError, Result};
+pub use error::{AxonError, RateLimitScope, Result};
 pub use models::*;

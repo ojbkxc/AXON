@@ -19,6 +19,7 @@ axon-runtime = { path = "../axon-runtime" }
 axon-store = { path = "../axon-store" }
 axon-tools = { path = "../axon-tools" }
 axon-protocol = { path = "../axon-protocol" }
+axon-ratelimit = { path = "../axon-ratelimit" }
 tokio = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }

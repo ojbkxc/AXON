@@ -56,4 +56,19 @@ impl From<rusqlite::Error> for AxonError {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RateLimitScope {
+    Requests,
+    Tokens,
+}
+
+impl fmt::Display for RateLimitScope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            RateLimitScope::Requests => "requests",
+            RateLimitScope::Tokens => "tokens",
+        })
+    }
+}
+
 pub type Result<T> = std::result::Result<T, AxonError>;

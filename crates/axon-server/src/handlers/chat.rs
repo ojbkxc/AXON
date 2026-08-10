@@ -13,6 +13,7 @@ use axon_protocol::{
     ChatChoice, ChatChunkChoice, ChatCompletionChunk, ChatCompletionRequest,
     ChatCompletionResponse, ChatDelta, ErrorDetail, ErrorResponse, ModelObject, ModelsResponse,
 };
+use axon_ratelimit::MultiReservation;
 
 use crate::app::AppState;
 
@@ -22,6 +23,36 @@ pub async fn chat_completions(
 ) -> Response {
     let gateway = state.gateway.clone();
 
+    let config = state.current_config();
+    let rate_limit = config
+        .resolve_model(&req.model)
+        .and_then(|m| m.rate_limit.clone());
+    let rl_key = format!("model:{}", req.model);
+
+    let reservation = if let Some(ref rl) = rate_limit {
+        if !rl.is_unrestricted() {
+            match state.limiter.pre_commit(&rl_key, rl).await {
+                Ok(r) => Some(r),
+                Err(e) => {
+                    return (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        Json(ErrorResponse {
+                            error: ErrorDetail {
+                                message: e.to_string(),
+                                code: Some("rate_limit_exceeded".into()),
+                            },
+                        }),
+                    )
+                        .into_response();
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let options = ChatOptions {
         temperature: req.temperature,
         max_tokens: req.max_tokens,
@@ -30,6 +61,11 @@ pub async fn chat_completions(
     };
 
     if req.stream {
+        let stream_hold = reservation.map(|r| {
+            MultiReservation::new(vec![r])
+                .into_stream_hold()
+        });
+
         let stream = match gateway
             .chat_stream(&req.model, &req.messages, &options)
             .await
@@ -50,7 +86,10 @@ pub async fn chat_completions(
         };
 
         let model = req.model.clone();
+        let limiter = state.limiter.clone();
+        let key = rl_key.clone();
         let sse_stream = async_stream::stream! {
+            let _hold = stream_hold;
             let mut pinned = stream;
             let chunk_id = format!("chatcmpl-{}", chrono::Utc::now().timestamp_millis());
             while let Some(event) = pinned.next().await {
@@ -98,6 +137,7 @@ pub async fn chat_completions(
                         );
                     }
                     StreamEvent::UsageUpdate { usage } => {
+                        limiter.add_tokens_post_stream(&key, usage.total_tokens as u64);
                         let chunk = ChatCompletionChunk {
                             id: chunk_id.clone(),
                             object: "chat.completion.chunk".into(),
@@ -113,7 +153,6 @@ pub async fn chat_completions(
                             axum::response::sse::Event::default()
                                 .data(serde_json::to_string(&chunk).unwrap_or_default())
                         );
-                        let _ = usage;
                     }
                     StreamEvent::Done { finish_reason } => {
                         let chunk = ChatCompletionChunk {
@@ -150,6 +189,9 @@ pub async fn chat_completions(
 
     match gateway.chat(&req.model, &req.messages, &options).await {
         Ok(resp) => {
+            if let Some(r) = reservation {
+                r.commit_tokens(resp.usage.total_tokens as u64).await;
+            }
             let response = ChatCompletionResponse {
                 id: format!("chatcmpl-{}", chrono::Utc::now().timestamp_millis()),
                 object: "chat.completion".into(),
