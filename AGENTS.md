@@ -186,7 +186,7 @@ AXON/
 │   └── src/main/{AndroidManifest.xml, java/com/axon/app/{MainActivity,AxonService}.java, res/values/strings.xml, assets/}
 ├── android/termux/     ✅ 就绪    # install-termux.sh（从 artifact/源码安装 + 默认配置）
 ├── scripts/            ✅ 就绪    # cross-android.sh（cargo-ndk）+ build-apk.sh（gradle）
-├── tests/e2e/          ❌ 空     # E2E 测试
+├── tests/e2e/          ✅ CI 全绿  # axon-e2e crate：9 个 E2E 测试（healthz/readyz/status/metrics/agents/tools/usage/models/conversations）
 └── docs/               ❌ 空     # 文档
 ```
 
@@ -214,7 +214,7 @@ AXON/
 ### ❌ 未完成（按依赖顺序）
 1. **ui/ 嵌入二进制**：✅ `include_dir!("$CARGO_MANIFEST_DIR/../../ui/dist")`（feature `embed-ui`）+ axum 静态路由 `/ui/*`（mime 推断 + SPA fallback），CI rust job 先 build ui 再 cargo build 嵌入。CI 全绿验证（run 31384489805）。
 2. **android/ + scripts/（v0.8 APK 流水线，CI 全绿）**：`scripts/cross-android.sh`（cargo-ndk 交叉编译 aarch64-linux-android）+ `scripts/build-apk.sh`（gradle assembleRelease）+ `android/apk/` Gradle WebView 壳工程（AGP 8.5.2, namespace com.axon.app, compileSdk 34, minSdk 21, arm64-v8a, Java17；MainActivity 启动 AxonService + WebView 轮询 healthz 后加载 127.0.0.1:8080/ui/；AxonService 前台服务 + 从 assets 提取 axon 二进制 + ProcessBuilder 启动 + 日志转发）+ `.github/workflows/android-apk.yml`（cargo-ndk 交叉编译 + gradle assembleRelease + 命名 AXON-v1.0.1-android-arm64-v8a.apk + 上传 artifact）。**CI 全绿验证通过**（run 31393481268，3m19s，artifact `axon-apk-arm64-v8a` 已上传）。修复历程：kotlin-stdlib 1.8.22/1.6.21 duplicate class（force resolutionStrategy）→ `stat_sys_data_done`/`sym_def_app_icon` @hide drawable（改 `ic_dialog_info`）。
-3. **tests/e2e/**：Vitest + 真实进程，核心路径用例。
+3. **tests/e2e/**：✅ axon-e2e crate（9 个 E2E 测试，真实 TcpListener + reqwest，CI 全绿 run 31401226428）。
 4. **docs/**：README、快速入门、API 参考、部署指南。
 5. **全量编译验证**：✅ GitHub CI rust+ui 两 job 全绿（§R2.3 闭环已跑通，累计 12 次迭代修复）。
 
@@ -347,6 +347,7 @@ cd ui && pnpm build                    # 产物到 ui/dist，供 include_dir! �
 
 ## 9. 变更日志（追加新行，最新在上）
 
+- 2026-08-10 **E2E 测试完成（CI 全绿）**：axon-server 重构为 lib + bin（加 `src/lib.rs` 暴露 `build_router` + `AppState`，main.rs 用 `axon_server::`）；新建 `tests/e2e/` crate（依赖 axon-server default-features=false + axum + reqwest + tempfile），9 个 E2E 测试（真实 TcpListener bind 127.0.0.1:0 + reqwest HTTP 调用）：healthz/readyz/status/metrics/list_agents/list_tools/usage/list_models/conversation_create_and_list。修复：(1) tests/e2e 缺 axum 依赖；(2) conversation POST 500 —— `tempfile::tempdir()` 在 start() 返回时 drop 删除 db 文件，加 `std::mem::forget(dir)` 保持存活；(3) 删 feature-unstable ui 测试（Cargo feature unification 导致 embed-ui 在 workspace test 时启用）。CI 全绿（run 31401226428，1m41s）。
 - 2026-08-10 **v0.6 可观测性：结构化 JSON 日志选项**：axon-core ObservabilityConfig 加 `log_format: String`（"plain"|"json"，默认 plain）+ default_log_format()；axon-server main.rs 调整启动顺序为先加载 config 再 init tracing（config 加载失败用 eprintln 兜底），据 `config.observability.log_format` + `AXON_LOG_FORMAT` env 选 `.json()` 或 plain fmt；config.example.yaml 加 log_format 示例。CI 全绿（run 31396860258，1m18s）。至此 v0.6 可观测性基本完成（tracing + Prometheus /metrics + JSON 日志选项）。下一步：v0.7 高级路由（限流，复用 aisix-ratelimit）。
 - 2026-08-10 **P4 移动端适配完成**：交叉编译产物 axon 二进制 **5.1M**（远低于 30MB 目标 / 50MB 硬约束），APK `axon-release-unsigned.apk` **5.0M**。新增 `android/termux/install-termux.sh`（从 CI artifact 或源码安装 + 默认配置生成 + 启动提示）。P4 全部勾选（启动内存 < 150MB 待真机实测）。下一步：P6 可观测性（Prometheus 指标 + 结构化日志，复用 aisix telemetry.rs）或 P7 高级路由。
 - 2026-08-10 **v0.8 APK 流水线 CI 全绿**：android-apk.yml 经 4 次 push→据报错修复循环后全绿（run 31393481268，3m19s，artifact `axon-apk-arm64-v8a` 上传）。修复历程：(1) run #1 失败 Build APK（gradle，无日志因 api 不可达）→ 加 env ANDROID_HOME/local.properties/诊断 step/error-to-annotation；(2) run #2 失败 `checkReleaseDuplicateClasses`：kotlin-stdlib 1.8.22 与 kotlin-stdlib-jdk8 1.6.21 duplicate class（appcompat/webkit 传递依赖旧版）→ build.gradle 加 `configurations.all { resolutionStrategy.force }` 统一 1.8.22；(3) run #3 失败 `compileReleaseJavaWithJavac`：`android.R.drawable.stat_sys_data_done` 是 @hide 资源不在 compileSdk 34 public API → 改 `ic_dialog_info`（同时改 manifest `sym_def_app_icon`→`ic_dialog_info`）；(4) run #4 全绿。至此 v0.8 APK 流水线完成，产出 `AXON-v1.0.1-android-arm64-v8a.apk`。回写 §4/§6。
