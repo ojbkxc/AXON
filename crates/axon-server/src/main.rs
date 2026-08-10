@@ -36,26 +36,11 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let log_level = cli
-        .log_level
-        .clone()
-        .or_else(|| std::env::var("AXON_LOG_LEVEL").ok())
-        .unwrap_or_else(|| "info".into());
-
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&log_level)),
-        )
-        .init();
-
-    tracing::info!("AXON v{} starting", env!("CARGO_PKG_VERSION"));
-
     let config_path = PathBuf::from(&cli.config);
     let mut config = if config_path.exists() {
         AxonConfig::from_file(&cli.config)?
     } else {
-        tracing::warn!("config file '{}' not found, using defaults", cli.config);
+        eprintln!("config file '{}' not found, using defaults", cli.config);
         AxonConfig::default()
     };
 
@@ -64,6 +49,28 @@ fn main() -> anyhow::Result<()> {
     }
 
     config.validate()?;
+
+    let log_level = cli
+        .log_level
+        .clone()
+        .or_else(|| std::env::var("AXON_LOG_LEVEL").ok())
+        .unwrap_or_else(|| config.observability.log_level.clone());
+    let log_format = std::env::var("AXON_LOG_FORMAT")
+        .ok()
+        .unwrap_or_else(|| config.observability.log_format.clone());
+
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&log_level));
+    if log_format.eq_ignore_ascii_case("json") {
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .json()
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(filter).init();
+    }
+
+    tracing::info!(version = env!("CARGO_PKG_VERSION"), "AXON starting");
 
     let working_dir = std::env::current_dir()?;
     let state = AppState::new(config, working_dir)?;

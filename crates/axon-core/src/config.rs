@@ -194,6 +194,8 @@ fn default_max_conn() -> u32 {
 pub struct ObservabilityConfig {
     #[serde(default = "default_log_level")]
     pub log_level: String,
+    #[serde(default = "default_log_format")]
+    pub log_format: String,
     #[serde(default = "default_true")]
     pub metrics_enabled: bool,
     #[serde(default = "default_true")]
@@ -204,6 +206,7 @@ impl Default for ObservabilityConfig {
     fn default() -> Self {
         ObservabilityConfig {
             log_level: default_log_level(),
+            log_format: default_log_format(),
             metrics_enabled: true,
             access_log_enabled: true,
         }
@@ -212,6 +215,10 @@ impl Default for ObservabilityConfig {
 
 fn default_log_level() -> String {
     "info".into()
+}
+
+fn default_log_format() -> String {
+    "plain".into()
 }
 
 #[cfg(test)]
