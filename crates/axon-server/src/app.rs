@@ -12,7 +12,7 @@ pub struct AppState {
     pub config: ArcSwap<AxonConfig>,
     pub gateway: Arc<EmbeddedGateway>,
     pub store: Arc<Store>,
-    pub tools: ArcSwap<ToolRegistry>,
+    pub tools: ArcSwap<Arc<ToolRegistry>>,
     pub executor: ArcSwap<AgentExecutor>,
     pub start_time: std::time::Instant,
     pub working_dir: std::path::PathBuf,
@@ -66,7 +66,7 @@ impl AppState {
             self.working_dir.clone(),
         );
 
-        self.tools.store(new_tools_arc);
+        self.tools.store(Arc::new(new_tools_arc));
         self.executor.store(Arc::new(executor));
         self.config.store(Arc::new(config));
 
@@ -78,7 +78,7 @@ impl AppState {
     }
 
     pub fn tools(&self) -> Arc<ToolRegistry> {
-        self.tools.load_full()
+        self.tools.load_full().as_ref().clone()
     }
 
     pub fn current_config(&self) -> Arc<AxonConfig> {
