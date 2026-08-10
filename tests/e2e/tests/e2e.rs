@@ -7,6 +7,7 @@ async fn start() -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let mut config = AxonConfig::default();
     config.storage.sqlite_path = dir.path().join("test.db").to_string_lossy().into_owned();
     let state = AppState::new(config, dir.path().to_path_buf()).unwrap();
+    std::mem::forget(dir);
     let router = build_router(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
