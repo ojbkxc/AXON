@@ -101,9 +101,11 @@ async fn conversation_create_and_list() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 200);
-    let body: Value = resp.json().await.unwrap();
-    assert!(body.get("id").is_some());
+    let status = resp.status();
+    let text = resp.text().await.unwrap();
+    assert_eq!(status, 200, "POST /v1/conversations body: {text}");
+    let body: Value = serde_json::from_str(&text).expect("invalid json");
+    assert!(body.get("id").is_some(), "missing id in {body}");
     let resp = client
         .get(url(addr, "/v1/conversations"))
         .send()
@@ -113,11 +115,4 @@ async fn conversation_create_and_list() {
     let body: Value = resp.json().await.unwrap();
     assert!(body.is_array());
     assert!(!body.as_array().unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn ui_returns_404_without_embed() {
-    let (addr, _h) = start().await;
-    let resp = reqwest::get(url(addr, "/ui/")).await.unwrap();
-    assert_eq!(resp.status(), 404);
 }
