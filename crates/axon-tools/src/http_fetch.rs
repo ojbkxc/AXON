@@ -8,7 +8,6 @@ use axon_core::Result;
 use crate::registry::{ToolContext, ToolProvider, ToolResult};
 
 pub struct HttpFetchTool {
-    timeout_ms: u64,
     max_response_chars: usize,
     client: reqwest::Client,
 }
@@ -16,7 +15,6 @@ pub struct HttpFetchTool {
 impl HttpFetchTool {
     pub fn new(timeout_ms: u64, max_response_chars: usize) -> Self {
         HttpFetchTool {
-            timeout_ms,
             max_response_chars,
             client: reqwest::Client::builder()
                 .timeout(Duration::from_millis(timeout_ms))
