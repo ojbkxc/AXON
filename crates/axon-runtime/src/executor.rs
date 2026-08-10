@@ -5,12 +5,10 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axon_core::{
-    AgentDefinition, AxonError, ChatMessage, ChatOptions, Result, TokenUsage, ToolCall,
-};
+use axon_core::{AgentDefinition, AxonError, ChatMessage, Result, TokenUsage, ToolCall};
 use axon_gateway::{EmbeddedGateway, StreamEvent};
 use axon_store::{MessageRecord, Store};
-use axon_tools::{ToolContext, ToolRegistry};
+use axon_tools::ToolRegistry;
 
 pub struct AgentExecutor {
     gateway: Arc<EmbeddedGateway>,

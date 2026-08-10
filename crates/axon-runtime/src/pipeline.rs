@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use futures::stream::{BoxStream, StreamExt};
-use futures::Stream;
 
 use axon_core::{AgentDefinition, ChatMessage, ChatOptions, TokenUsage, ToolCall};
 use axon_gateway::{EmbeddedGateway, StreamEvent};
