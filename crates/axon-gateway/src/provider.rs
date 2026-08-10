@@ -83,6 +83,50 @@ struct OpenAiUsage {
     completion_tokens: u32,
     #[serde(default)]
     total_tokens: u32,
+    #[serde(default)]
+    prompt_tokens_details: Option<OpenAiPromptTokensDetails>,
+    #[serde(default)]
+    prompt_cache_hit_tokens: Option<u32>,
+    #[serde(default)]
+    prompt_cache_miss_tokens: Option<u32>,
+    #[serde(default)]
+    completion_tokens_details: Option<OpenAiCompletionTokensDetails>,
+}
+
+#[derive(Deserialize, Default)]
+struct OpenAiPromptTokensDetails {
+    #[serde(default)]
+    cached_tokens: Option<u32>,
+}
+
+#[derive(Deserialize, Default)]
+struct OpenAiCompletionTokensDetails {
+    #[serde(default)]
+    reasoning_tokens: Option<u32>,
+}
+
+impl OpenAiUsage {
+    fn to_token_usage(&self) -> TokenUsage {
+        TokenUsage {
+            prompt_tokens: self.prompt_tokens,
+            completion_tokens: self.completion_tokens,
+            total_tokens: self.total_tokens,
+            prompt_tokens_details: self
+                .prompt_tokens_details
+                .as_ref()
+                .map(|d| axon_core::PromptTokensDetails {
+                    cached_tokens: d.cached_tokens,
+                }),
+            prompt_cache_hit_tokens: self.prompt_cache_hit_tokens,
+            prompt_cache_miss_tokens: self.prompt_cache_miss_tokens,
+            completion_tokens_details: self
+                .completion_tokens_details
+                .as_ref()
+                .map(|d| axon_core::CompletionTokensDetails {
+                    reasoning_tokens: d.reasoning_tokens,
+                }),
+        }
+    }
 }
 
 #[async_trait]
@@ -135,11 +179,7 @@ impl Provider for OpenAiProvider {
         Ok(ChatResponse {
             content: choice.message.content.unwrap_or_default(),
             tool_calls: choice.message.tool_calls.unwrap_or_default(),
-            usage: TokenUsage {
-                prompt_tokens: data.usage.prompt_tokens,
-                completion_tokens: data.usage.completion_tokens,
-                total_tokens: data.usage.total_tokens,
-            },
+            usage: data.usage.to_token_usage(),
             model: data.model,
             finish_reason: choice.finish_reason,
         })
@@ -323,6 +363,7 @@ impl Provider for AnthropicProvider {
                 prompt_tokens: data.usage.input_tokens,
                 completion_tokens: data.usage.output_tokens,
                 total_tokens: data.usage.input_tokens + data.usage.output_tokens,
+                ..Default::default()
             },
             model: data.model,
             finish_reason: data.stop_reason,

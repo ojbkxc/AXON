@@ -93,6 +93,9 @@ impl<'a> GenerationPipeline<'a> {
                             assistant_text.push_str(&text);
                             yield StreamEvent::TextChunk { text };
                         }
+                        StreamEvent::ThoughtChunk { text, title, signature } => {
+                            yield StreamEvent::ThoughtChunk { text, title, signature };
+                        }
                         StreamEvent::ToolCallRequest { tool_call } => {
                             tool_calls.push(tool_call);
                         }

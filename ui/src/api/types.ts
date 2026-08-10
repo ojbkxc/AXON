@@ -1,7 +1,19 @@
+export interface PromptTokensDetails {
+  cached_tokens?: number;
+}
+
+export interface CompletionTokensDetails {
+  reasoning_tokens?: number;
+}
+
 export interface TokenUsage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  prompt_tokens_details?: PromptTokensDetails;
+  prompt_cache_hit_tokens?: number;
+  prompt_cache_miss_tokens?: number;
+  completion_tokens_details?: CompletionTokensDetails;
 }
 
 export interface ToolCallFunction {
@@ -34,6 +46,16 @@ export interface ToolSchema {
   function: ToolFunctionSchema;
 }
 
+export interface StreamOptions {
+  include_usage: boolean;
+}
+
+export interface Reasoning {
+  effort?: string;
+  max_tokens?: number;
+  enabled?: boolean;
+}
+
 export interface ChatCompletionRequest {
   model: string;
   messages: ChatMessage[];
@@ -41,6 +63,13 @@ export interface ChatCompletionRequest {
   max_tokens?: number;
   stream?: boolean;
   tools?: ToolSchema[];
+  stream_options?: StreamOptions;
+  reasoning_effort?: string;
+  reasoning?: Reasoning;
+  service_tier?: string;
+  top_p?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
 }
 
 export interface ChatChoice {
@@ -169,9 +198,11 @@ export interface ErrorResponse {
 
 export type StreamEvent =
   | { type: "text_chunk"; text: string }
-  | { type: "thought_chunk"; text: string }
+  | { type: "thought_chunk"; text: string; title?: string; signature?: string }
+  | { type: "tool_call_update"; stream_key: string; id?: string; name: string; arguments: string; signature?: string }
   | { type: "tool_call_request"; tool_call: ToolCall }
   | { type: "tool_call_result"; tool_call_id: string; result: string; is_error: boolean }
   | { type: "usage_update"; usage: TokenUsage }
   | { type: "error"; message: string }
+  | { type: "retrying"; attempt: number; max_attempts: number }
   | { type: "done"; finish_reason: string };

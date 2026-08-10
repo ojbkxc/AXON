@@ -210,6 +210,26 @@ pub struct TokenUsage {
     pub completion_tokens: u32,
     #[serde(default)]
     pub total_tokens: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_tokens_details: Option<PromptTokensDetails>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_hit_tokens: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_miss_tokens: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completion_tokens_details: Option<CompletionTokensDetails>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PromptTokensDetails {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cached_tokens: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CompletionTokensDetails {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_tokens: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -378,6 +398,37 @@ mod tests {
         assert_eq!(usage.prompt_tokens, 0);
         assert_eq!(usage.completion_tokens, 0);
         assert_eq!(usage.total_tokens, 0);
+        assert!(usage.prompt_tokens_details.is_none());
+        assert!(usage.prompt_cache_hit_tokens.is_none());
+        assert!(usage.prompt_cache_miss_tokens.is_none());
+        assert!(usage.completion_tokens_details.is_none());
+    }
+
+    #[test]
+    fn test_token_usage_with_reasoning_fields() {
+        let usage = TokenUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            prompt_tokens_details: Some(PromptTokensDetails {
+                cached_tokens: Some(80),
+            }),
+            prompt_cache_hit_tokens: Some(80),
+            prompt_cache_miss_tokens: Some(20),
+            completion_tokens_details: Some(CompletionTokensDetails {
+                reasoning_tokens: Some(30),
+            }),
+        };
+        let json = serde_json::to_string(&usage).unwrap();
+        assert!(json.contains("prompt_tokens_details"));
+        assert!(json.contains("cached_tokens"));
+        assert!(json.contains("prompt_cache_hit_tokens"));
+        assert!(json.contains("prompt_cache_miss_tokens"));
+        assert!(json.contains("completion_tokens_details"));
+        assert!(json.contains("reasoning_tokens"));
+        let de: TokenUsage = serde_json::from_str(&json).unwrap();
+        assert_eq!(de.prompt_cache_hit_tokens, Some(80));
+        assert_eq!(de.completion_tokens_details.as_ref().unwrap().reasoning_tokens, Some(30));
     }
 
     #[test]

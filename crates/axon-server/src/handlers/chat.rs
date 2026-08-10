@@ -101,13 +101,36 @@ pub async fn chat_completions(
                                 index: 0,
                                 delta: ChatDelta {
                                     content: Some(text),
-                                    role: None,
-                                    tool_calls: None,
+                                    ..Default::default()
                                 },
                                 finish_reason: None,
                             }],
+                            outcome: None,
+                            error: None,
                         };
                         yield Ok::<_, std::convert::Infallible>(
+                            axum::response::sse::Event::default()
+                                .data(serde_json::to_string(&chunk).unwrap_or_default())
+                        );
+                    }
+                    StreamEvent::ThoughtChunk { text, .. } => {
+                        let chunk = ChatCompletionChunk {
+                            id: chunk_id.clone(),
+                            object: "chat.completion.chunk".into(),
+                            created: chrono::Utc::now().timestamp(),
+                            model: model.clone(),
+                            choices: vec![ChatChunkChoice {
+                                index: 0,
+                                delta: ChatDelta {
+                                    reasoning_content: Some(text),
+                                    ..Default::default()
+                                },
+                                finish_reason: None,
+                            }],
+                            outcome: None,
+                            error: None,
+                        };
+                        yield Ok(
                             axum::response::sse::Event::default()
                                 .data(serde_json::to_string(&chunk).unwrap_or_default())
                         );
@@ -121,12 +144,13 @@ pub async fn chat_completions(
                             choices: vec![ChatChunkChoice {
                                 index: 0,
                                 delta: ChatDelta {
-                                    content: None,
-                                    role: None,
                                     tool_calls: Some(vec![tool_call]),
+                                    ..Default::default()
                                 },
                                 finish_reason: None,
                             }],
+                            outcome: None,
+                            error: None,
                         };
                         yield Ok(
                             axum::response::sse::Event::default()
@@ -145,6 +169,8 @@ pub async fn chat_completions(
                                 delta: ChatDelta::default(),
                                 finish_reason: None,
                             }],
+                            outcome: None,
+                            error: None,
                         };
                         yield Ok(
                             axum::response::sse::Event::default()
@@ -162,6 +188,8 @@ pub async fn chat_completions(
                                 delta: ChatDelta::default(),
                                 finish_reason,
                             }],
+                            outcome: None,
+                            error: None,
                         };
                         yield Ok(
                             axum::response::sse::Event::default()

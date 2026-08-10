@@ -89,11 +89,13 @@ pub async fn invoke_agent(
             while let Some(event) = pinned.as_mut().next().await {
                 let payload = match &event {
                     StreamEvent::TextChunk { text } => json!({ "type": "text_chunk", "text": text }),
-                    StreamEvent::ThoughtChunk { text } => json!({ "type": "thought_chunk", "text": text }),
+                    StreamEvent::ThoughtChunk { text, title, signature } => json!({ "type": "thought_chunk", "text": text, "title": title, "signature": signature }),
+                    StreamEvent::ToolCallUpdate { stream_key, id, name, arguments, signature } => json!({ "type": "tool_call_update", "stream_key": stream_key, "id": id, "name": name, "arguments": arguments, "signature": signature }),
                     StreamEvent::ToolCallRequest { tool_call } => json!({ "type": "tool_call_request", "tool_call": tool_call }),
                     StreamEvent::ToolCallResult { tool_call_id, result, is_error } => json!({ "type": "tool_call_result", "tool_call_id": tool_call_id, "result": result, "is_error": is_error }),
                     StreamEvent::UsageUpdate { usage } => json!({ "type": "usage_update", "usage": usage }),
                     StreamEvent::Error { message } => json!({ "type": "error", "message": message }),
+                    StreamEvent::Retrying { attempt, max_attempts } => json!({ "type": "retrying", "attempt": attempt, "max_attempts": max_attempts }),
                     StreamEvent::Done { finish_reason } => json!({ "type": "done", "finish_reason": finish_reason }),
                 };
                 yield Ok(

@@ -117,3 +117,61 @@ async fn conversation_create_and_list() {
     assert!(body.is_array());
     assert!(!body.as_array().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn chat_completions_accepts_reasoning_fields() {
+    let (addr, _h) = start().await;
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": "nonexistent-model",
+        "messages": [{"role": "user", "content": "hi"}],
+        "stream": false,
+        "reasoning_effort": "medium",
+        "reasoning": {"effort": "medium", "max_tokens": 4096, "enabled": true},
+        "service_tier": "default",
+        "top_p": 0.9,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "stream_options": {"include_usage": true}
+    });
+    let resp = client
+        .post(url(addr, "/v1/chat/completions"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    let status = resp.status();
+    let text = resp.text().await.unwrap();
+    assert_ne!(
+        status,
+        reqwest::StatusCode::BAD_REQUEST,
+        "expected non-400 (deserialization ok) but got 400: {text}"
+    );
+}
+
+#[tokio::test]
+async fn chat_completions_stream_accepts_reasoning_fields() {
+    let (addr, _h) = start().await;
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": "nonexistent-model",
+        "messages": [{"role": "user", "content": "hi"}],
+        "stream": true,
+        "reasoning_effort": "high",
+        "service_tier": "auto",
+        "top_p": 1.0
+    });
+    let resp = client
+        .post(url(addr, "/v1/chat/completions"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    let status = resp.status();
+    let text = resp.text().await.unwrap();
+    assert_ne!(
+        status,
+        reqwest::StatusCode::BAD_REQUEST,
+        "expected non-400 (deserialization ok) but got 400: {text}"
+    );
+}

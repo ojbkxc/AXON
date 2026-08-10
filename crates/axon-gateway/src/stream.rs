@@ -11,6 +11,19 @@ pub enum StreamEvent {
     },
     ThoughtChunk {
         text: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        title: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        signature: Option<String>,
+    },
+    ToolCallUpdate {
+        stream_key: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        id: Option<String>,
+        name: String,
+        arguments: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        signature: Option<String>,
     },
     ToolCallRequest {
         tool_call: ToolCall,
@@ -25,6 +38,10 @@ pub enum StreamEvent {
     },
     Error {
         message: String,
+    },
+    Retrying {
+        attempt: u32,
+        max_attempts: u32,
     },
     Done {
         finish_reason: Option<String>,
@@ -49,6 +66,38 @@ pub enum ChatChunk {
     ToolCall { tool_call: ToolCall },
     Usage { usage: TokenUsage },
     Done { finish_reason: Option<String> },
+}
+
+fn parse_usage(usage: &serde_json::Value) -> TokenUsage {
+    let prompt_tokens_details = usage
+        .get("prompt_tokens_details")
+        .and_then(|d| d.get("cached_tokens"))
+        .and_then(|t| t.as_u64())
+        .map(|c| axon_core::PromptTokensDetails {
+            cached_tokens: Some(c as u32),
+        });
+    let completion_tokens_details = usage
+        .get("completion_tokens_details")
+        .and_then(|d| d.get("reasoning_tokens"))
+        .and_then(|t| t.as_u64())
+        .map(|r| axon_core::CompletionTokensDetails {
+            reasoning_tokens: Some(r as u32),
+        });
+    TokenUsage {
+        prompt_tokens: usage.get("prompt_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
+        completion_tokens: usage.get("completion_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
+        total_tokens: usage.get("total_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
+        prompt_tokens_details,
+        prompt_cache_hit_tokens: usage
+            .get("prompt_cache_hit_tokens")
+            .and_then(|t| t.as_u64())
+            .map(|v| v as u32),
+        prompt_cache_miss_tokens: usage
+            .get("prompt_cache_miss_tokens")
+            .and_then(|t| t.as_u64())
+            .map(|v| v as u32),
+        completion_tokens_details,
+    }
 }
 
 pub fn parse_openai_sse(resp: reqwest::Response) -> impl Stream<Item = StreamEvent> + Send {
@@ -99,12 +148,43 @@ pub fn parse_openai_sse(resp: reqwest::Response) -> impl Stream<Item = StreamEve
                     }
 
                     if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+                        if let Some(outcome) = v.get("outcome").and_then(|o| o.as_str()) {
+                            if !outcome.is_empty() && outcome != "success" {
+                                yield StreamEvent::Error {
+                                    message: format!("upstream outcome: {outcome}"),
+                                };
+                            }
+                        }
+                        if let Some(err) = v.get("error") {
+                            if let Some(msg) = err.get("message").and_then(|m| m.as_str()) {
+                                yield StreamEvent::Error { message: msg.into() };
+                            }
+                        }
                         if let Some(choices) = v.get("choices").and_then(|c| c.as_array()) {
                             for choice in choices {
                                 if let Some(delta) = choice.get("delta") {
                                     if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
                                         if !content.is_empty() {
                                             yield StreamEvent::TextChunk { text: content.into() };
+                                        }
+                                    }
+                                    if let Some(rc) = delta.get("reasoning_content").and_then(|c| c.as_str()) {
+                                        if !rc.is_empty() {
+                                            yield StreamEvent::ThoughtChunk { text: rc.into(), title: None, signature: None };
+                                        }
+                                    }
+                                    if let Some(r) = delta.get("reasoning").and_then(|c| c.as_str()) {
+                                        if !r.is_empty() {
+                                            yield StreamEvent::ThoughtChunk { text: r.into(), title: None, signature: None };
+                                        }
+                                    }
+                                    if let Some(details) = delta.get("reasoning_details").and_then(|d| d.as_array()) {
+                                        for detail in details {
+                                            if let Some(text) = detail.get("text").and_then(|t| t.as_str()) {
+                                                if !text.is_empty() {
+                                                    yield StreamEvent::ThoughtChunk { text: text.into(), title: None, signature: None };
+                                                }
+                                            }
                                         }
                                     }
                                     if let Some(tool_calls) = delta.get("tool_calls").and_then(|c| c.as_array()) {
@@ -149,11 +229,7 @@ pub fn parse_openai_sse(resp: reqwest::Response) -> impl Stream<Item = StreamEve
                         }
                         if let Some(usage) = v.get("usage") {
                             yield StreamEvent::UsageUpdate {
-                                usage: TokenUsage {
-                                    prompt_tokens: usage.get("prompt_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
-                                    completion_tokens: usage.get("completion_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
-                                    total_tokens: usage.get("total_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
-                                },
+                                usage: parse_usage(usage),
                             };
                         }
                     }
@@ -240,15 +316,16 @@ pub fn parse_anthropic_sse(resp: reqwest::Response) -> impl Stream<Item = Stream
                         match event.event_type.as_str() {
                             "message_start" => {
                                 if let Some(msg) = event.message {
-                                    if let Some(usage) = msg.usage {
-                                        yield StreamEvent::UsageUpdate {
-                                            usage: TokenUsage {
-                                                prompt_tokens: usage.input_tokens,
-                                                completion_tokens: 0,
-                                                total_tokens: usage.input_tokens,
-                                            },
-                                        };
-                                    }
+                                if let Some(usage) = msg.usage {
+                                    yield StreamEvent::UsageUpdate {
+                                        usage: TokenUsage {
+                                            prompt_tokens: usage.input_tokens,
+                                            completion_tokens: 0,
+                                            total_tokens: usage.input_tokens,
+                                            ..Default::default()
+                                        },
+                                    };
+                                }
                                 }
                             }
                             "content_block_start" => {
