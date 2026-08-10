@@ -1,0 +1,42 @@
+plugins {
+    id "com.android.application" version "8.5.2"
+}
+
+android {
+    namespace "com.axon.app"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.axon.app"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.1"
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs += ["src/main/assets"]
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.webkit:webkit:1.11.0"
+}
