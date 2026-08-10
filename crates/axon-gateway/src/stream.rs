@@ -1,7 +1,7 @@
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
-use axon_core::{ToolCall, TokenUsage};
+use axon_core::{TokenUsage, ToolCall};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -45,23 +45,13 @@ pub struct ChatResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatChunk {
-    Text {
-        text: String,
-    },
-    ToolCall {
-        tool_call: ToolCall,
-    },
-    Usage {
-        usage: TokenUsage,
-    },
-    Done {
-        finish_reason: Option<String>,
-    },
+    Text { text: String },
+    ToolCall { tool_call: ToolCall },
+    Usage { usage: TokenUsage },
+    Done { finish_reason: Option<String> },
 }
 
-pub fn parse_openai_sse(
-    resp: reqwest::Response,
-) -> impl Stream<Item = StreamEvent> + Send {
+pub fn parse_openai_sse(resp: reqwest::Response) -> impl Stream<Item = StreamEvent> + Send {
     async_stream::stream! {
         let mut bytes = resp.bytes_stream();
         let mut buffer = String::new();
@@ -219,9 +209,7 @@ struct AnthropicContentBlock {
     name: Option<String>,
 }
 
-pub fn parse_anthropic_sse(
-    resp: reqwest::Response,
-) -> impl Stream<Item = StreamEvent> + Send {
+pub fn parse_anthropic_sse(resp: reqwest::Response) -> impl Stream<Item = StreamEvent> + Send {
     async_stream::stream! {
         let mut bytes = resp.bytes_stream();
         let mut buffer = String::new();

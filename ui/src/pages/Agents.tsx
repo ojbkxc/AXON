@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { AgentInfo } from "../api/types";
 import { useFetch } from "../hooks/useFetch";
@@ -77,7 +77,7 @@ export default function Agents() {
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex gap-3">
       <dt className="w-32 shrink-0 text-xs uppercase tracking-wide text-slate-500">{label}</dt>

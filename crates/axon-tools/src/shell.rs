@@ -50,17 +50,14 @@ impl ToolProvider for ShellTool {
         })
     }
 
-    async fn execute(
-        &self,
-        input: serde_json::Value,
-        context: &ToolContext,
-    ) -> Result<ToolResult> {
+    async fn execute(&self, input: serde_json::Value, context: &ToolContext) -> Result<ToolResult> {
         let command = input
             .get("command")
             .and_then(|c| c.as_str())
             .ok_or_else(|| axon_core::AxonError::Tool("shell: missing 'command' field".into()))?;
 
-        if !self.allowed_commands.is_empty() && !self.allowed_commands.iter().any(|c| c == command) {
+        if !self.allowed_commands.is_empty() && !self.allowed_commands.iter().any(|c| c == command)
+        {
             return Ok(ToolResult::err(format!(
                 "command '{command}' is not in the allowed list"
             )));
@@ -86,15 +83,18 @@ impl ToolProvider for ShellTool {
             .spawn()
             .map_err(|e| axon_core::AxonError::Tool(format!("shell spawn: {e}")))?;
 
-        let output = tokio::time::timeout(Duration::from_millis(self.timeout_ms), child.wait_with_output())
-            .await
-            .map_err(|_| {
-                axon_core::AxonError::Tool(format!(
-                    "shell command timed out after {}ms",
-                    self.timeout_ms
-                ))
-            })?
-            .map_err(|e| axon_core::AxonError::Tool(format!("shell wait: {e}")))?;
+        let output = tokio::time::timeout(
+            Duration::from_millis(self.timeout_ms),
+            child.wait_with_output(),
+        )
+        .await
+        .map_err(|_| {
+            axon_core::AxonError::Tool(format!(
+                "shell command timed out after {}ms",
+                self.timeout_ms
+            ))
+        })?
+        .map_err(|e| axon_core::AxonError::Tool(format!("shell wait: {e}")))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();

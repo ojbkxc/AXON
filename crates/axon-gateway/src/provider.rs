@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
-use axon_core::{AxonError, ChatMessage, ChatOptions, Result, ToolCall, TokenUsage};
 use crate::stream::{ChatResponse, StreamEvent};
+use axon_core::{AxonError, ChatMessage, ChatOptions, Result, TokenUsage, ToolCall};
 
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -126,9 +126,11 @@ impl Provider for OpenAiProvider {
             .await
             .map_err(|e| AxonError::Upstream(format!("openai parse: {e}")))?;
 
-        let choice = data.choices.into_iter().next().ok_or_else(|| {
-            AxonError::Upstream("openai: no choices in response".into())
-        })?;
+        let choice = data
+            .choices
+            .into_iter()
+            .next()
+            .ok_or_else(|| AxonError::Upstream("openai: no choices in response".into()))?;
 
         Ok(ChatResponse {
             content: choice.message.content.unwrap_or_default(),
@@ -170,7 +172,9 @@ impl Provider for OpenAiProvider {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            return Err(AxonError::Upstream(format!("openai stream {status}: {body}")));
+            return Err(AxonError::Upstream(format!(
+                "openai stream {status}: {body}"
+            )));
         }
 
         let stream = crate::stream::parse_openai_sse(resp);
@@ -388,8 +392,6 @@ pub fn create_provider(
         "openai" => Ok(Box::new(OpenAiProvider::new(api_base, api_key))),
         "anthropic" => Ok(Box::new(AnthropicProvider::new(api_base, api_key))),
         "vertex" => Ok(Box::new(OpenAiProvider::new(api_base, api_key))),
-        other => Err(AxonError::Config(format!(
-            "unknown provider type: {other}"
-        ))),
+        other => Err(AxonError::Config(format!("unknown provider type: {other}"))),
     }
 }

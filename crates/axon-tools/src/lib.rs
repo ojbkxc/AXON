@@ -19,10 +19,7 @@ use std::sync::Arc;
 use axon_core::ToolDefinition;
 use axon_store::Store;
 
-pub fn build_registry(
-    definitions: &[ToolDefinition],
-    store: Arc<Store>,
-) -> ToolRegistry {
+pub fn build_registry(definitions: &[ToolDefinition], store: Arc<Store>) -> ToolRegistry {
     let mut registry = ToolRegistry::new();
 
     for def in definitions {

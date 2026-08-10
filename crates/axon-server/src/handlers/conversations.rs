@@ -6,8 +6,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 
 use axon_protocol::{
-    ConversationResponse, CreateConversationRequest, ErrorResponse, ErrorDetail,
-    MessageResponse,
+    ConversationResponse, CreateConversationRequest, ErrorDetail, ErrorResponse, MessageResponse,
 };
 
 use crate::app::AppState;
@@ -102,10 +101,7 @@ pub async fn delete_conversation(
     }
 }
 
-pub async fn get_messages(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Response {
+pub async fn get_messages(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
     match state.store.get_messages(&id) {
         Ok(msgs) => {
             let resp: Vec<MessageResponse> =

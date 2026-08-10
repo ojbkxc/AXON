@@ -80,9 +80,7 @@ impl ToolProvider for CodeExecTool {
         match language {
             "python" => self.exec_python(code).await,
             "javascript" | "js" => self.exec_javascript(code).await,
-            other => Ok(ToolResult::err(format!(
-                "unsupported language: {other}"
-            ))),
+            other => Ok(ToolResult::err(format!("unsupported language: {other}"))),
         }
     }
 }
@@ -100,11 +98,7 @@ impl CodeExecTool {
         self.run_command(&mut cmd, "javascript").await
     }
 
-    async fn run_command(
-        &self,
-        cmd: &mut Command,
-        language: &str,
-    ) -> Result<ToolResult> {
+    async fn run_command(&self, cmd: &mut Command, language: &str) -> Result<ToolResult> {
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
@@ -112,15 +106,15 @@ impl CodeExecTool {
             .spawn()
             .map_err(|e| axon_core::AxonError::Tool(format!("code_exec spawn: {e}")))?;
 
-        let output = tokio::time::timeout(Duration::from_millis(self.timeout_ms), child.wait_with_output())
-            .await
-            .map_err(|_| {
-                axon_core::AxonError::Tool(format!(
-                    "code_exec timed out after {}ms",
-                    self.timeout_ms
-                ))
-            })?
-            .map_err(|e| axon_core::AxonError::Tool(format!("code_exec wait: {e}")))?;
+        let output = tokio::time::timeout(
+            Duration::from_millis(self.timeout_ms),
+            child.wait_with_output(),
+        )
+        .await
+        .map_err(|_| {
+            axon_core::AxonError::Tool(format!("code_exec timed out after {}ms", self.timeout_ms))
+        })?
+        .map_err(|e| axon_core::AxonError::Tool(format!("code_exec wait: {e}")))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();

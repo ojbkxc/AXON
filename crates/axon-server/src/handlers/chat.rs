@@ -10,8 +10,8 @@ use serde_json::json;
 use axon_core::{ChatMessage, ChatOptions, TokenUsage};
 use axon_gateway::StreamEvent;
 use axon_protocol::{
-    ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse, ChatChunkChoice,
-    ChatDelta, ChatChoice, ErrorResponse, ErrorDetail, ModelObject, ModelsResponse,
+    ChatChoice, ChatChunkChoice, ChatCompletionChunk, ChatCompletionRequest,
+    ChatCompletionResponse, ChatDelta, ErrorDetail, ErrorResponse, ModelObject, ModelsResponse,
 };
 
 use crate::app::AppState;

@@ -119,11 +119,7 @@ impl EmbeddedGateway {
         None
     }
 
-    fn select_from_route(
-        &self,
-        route_name: &str,
-        route: &RouteDefinition,
-    ) -> Option<String> {
+    fn select_from_route(&self, route_name: &str, route: &RouteDefinition) -> Option<String> {
         if route.targets.is_empty() {
             return None;
         }
@@ -168,9 +164,9 @@ impl EmbeddedGateway {
         messages: &[ChatMessage],
         options: &ChatOptions,
     ) -> Result<ChatResponse> {
-        let model_name = self.resolve_model_name(model).ok_or_else(|| {
-            AxonError::NotFound(format!("model or route '{model}' not found"))
-        })?;
+        let model_name = self
+            .resolve_model_name(model)
+            .ok_or_else(|| AxonError::NotFound(format!("model or route '{model}' not found")))?;
 
         let snap = self.snapshot.load();
         let provider = snap.providers.get(&model_name).ok_or_else(|| {
@@ -193,9 +189,9 @@ impl EmbeddedGateway {
         messages: &[ChatMessage],
         options: &ChatOptions,
     ) -> Result<std::pin::Pin<Box<dyn Stream<Item = StreamEvent> + Send>>> {
-        let model_name = self.resolve_model_name(model).ok_or_else(|| {
-            AxonError::NotFound(format!("model or route '{model}' not found"))
-        })?;
+        let model_name = self
+            .resolve_model_name(model)
+            .ok_or_else(|| AxonError::NotFound(format!("model or route '{model}' not found")))?;
 
         let snap = self.snapshot.load();
         let provider = snap.providers.get(&model_name).ok_or_else(|| {

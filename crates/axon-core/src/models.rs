@@ -321,10 +321,7 @@ mod tests {
             max_concurrency: None,
             rate_limit: None,
         };
-        assert_eq!(
-            mk("openai").resolve_api_base(),
-            "https://api.openai.com/v1"
-        );
+        assert_eq!(mk("openai").resolve_api_base(), "https://api.openai.com/v1");
         assert_eq!(
             mk("anthropic").resolve_api_base(),
             "https://api.anthropic.com"
@@ -344,10 +341,7 @@ mod tests {
             max_concurrency: None,
             rate_limit: None,
         };
-        assert_eq!(
-            model.resolve_api_base(),
-            "https://custom.example.com/v1"
-        );
+        assert_eq!(model.resolve_api_base(), "https://custom.example.com/v1");
     }
 
     #[test]

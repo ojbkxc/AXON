@@ -46,11 +46,7 @@ pub trait ToolProvider: Send + Sync {
     fn description(&self) -> &str;
     fn parameters_schema(&self) -> serde_json::Value;
 
-    async fn execute(
-        &self,
-        input: serde_json::Value,
-        context: &ToolContext,
-    ) -> Result<ToolResult>;
+    async fn execute(&self, input: serde_json::Value, context: &ToolContext) -> Result<ToolResult>;
 }
 
 pub struct ToolRegistry {

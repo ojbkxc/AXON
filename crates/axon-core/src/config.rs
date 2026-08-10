@@ -62,9 +62,7 @@ impl AxonConfig {
         }
         for agent in &self.agents {
             if agent.id.is_empty() {
-                return Err(crate::AxonError::Validation(
-                    "agent.id is empty".into(),
-                ));
+                return Err(crate::AxonError::Validation("agent.id is empty".into()));
             }
             if agent.max_iterations == 0 {
                 return Err(crate::AxonError::Validation(format!(

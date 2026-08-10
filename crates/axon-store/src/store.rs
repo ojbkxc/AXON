@@ -155,7 +155,10 @@ impl Store {
 
     pub fn delete_conversation(&self, id: &str) -> Result<()> {
         let conn = self.conn()?;
-        conn.execute("DELETE FROM messages WHERE conversation_id = ?1", params![id])?;
+        conn.execute(
+            "DELETE FROM messages WHERE conversation_id = ?1",
+            params![id],
+        )?;
         conn.execute(
             "DELETE FROM usage_records WHERE conversation_id = ?1",
             params![id],
@@ -214,8 +217,7 @@ impl Store {
                 parent_id: r.get(2)?,
                 role: r.get(3)?,
                 content: r.get(4)?,
-                tool_calls: tool_calls_str
-                    .and_then(|s| serde_json::from_str(&s).ok()),
+                tool_calls: tool_calls_str.and_then(|s| serde_json::from_str(&s).ok()),
                 tool_call_id: r.get(6)?,
                 model: r.get(7)?,
                 usage: usage_str.and_then(|s| serde_json::from_str(&s).ok()),
@@ -291,7 +293,8 @@ impl Store {
 
     pub fn get_memory(&self, key: &str, namespace: &str) -> Result<Option<String>> {
         let conn = self.conn()?;
-        let mut stmt = conn.prepare("SELECT value FROM memory WHERE key = ?1 AND namespace = ?2")?;
+        let mut stmt =
+            conn.prepare("SELECT value FROM memory WHERE key = ?1 AND namespace = ?2")?;
         let row = stmt
             .query_row(params![key, namespace], |r| r.get::<_, String>(0))
             .optional()?;
@@ -300,7 +303,9 @@ impl Store {
 
     pub fn list_memory(&self, namespace: &str) -> Result<Vec<MemoryEntry>> {
         let conn = self.conn()?;
-        let mut stmt = conn.prepare("SELECT key, value, updated_at FROM memory WHERE namespace = ?1 ORDER BY key")?;
+        let mut stmt = conn.prepare(
+            "SELECT key, value, updated_at FROM memory WHERE namespace = ?1 ORDER BY key",
+        )?;
         let rows = stmt.query_map(params![namespace], |r| {
             Ok(MemoryEntry {
                 key: r.get(0)?,
@@ -349,12 +354,7 @@ pub struct MessageRecord {
 }
 
 impl MessageRecord {
-    pub fn new(
-        conversation_id: &str,
-        parent_id: Option<&str>,
-        role: &str,
-        content: &str,
-    ) -> Self {
+    pub fn new(conversation_id: &str, parent_id: Option<&str>, role: &str, content: &str) -> Self {
         MessageRecord {
             id: Uuid::new_v4().to_string(),
             conversation_id: conversation_id.into(),

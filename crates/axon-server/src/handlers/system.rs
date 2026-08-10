@@ -4,9 +4,7 @@ use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 
-use axon_protocol::{
-    HealthResponse, StatusResponse, ToolInfoResponse, UsageStatsResponse,
-};
+use axon_protocol::{HealthResponse, StatusResponse, ToolInfoResponse, UsageStatsResponse};
 
 use crate::app::AppState;
 

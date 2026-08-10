@@ -42,10 +42,11 @@ impl AgentExecutor {
     ) -> Result<InvokeResult> {
         let conv_id = match conversation_id {
             Some(id) => id.to_string(),
-            None => self
-                .store
-                .create_conversation(&agent.id, Some(&agent.name))?
-                .id,
+            None => {
+                self.store
+                    .create_conversation(&agent.id, Some(&agent.name))?
+                    .id
+            }
         };
 
         let user_msg = MessageRecord::new(&conv_id, None, "user", input);
@@ -189,10 +190,11 @@ impl AgentExecutor {
     ) -> Result<impl futures::Stream<Item = StreamEvent>> {
         let conv_id = match conversation_id {
             Some(id) => id,
-            None => self
-                .store
-                .create_conversation(&agent.id, Some(&agent.name))?
-                .id,
+            None => {
+                self.store
+                    .create_conversation(&agent.id, Some(&agent.name))?
+                    .id
+            }
         };
 
         let user_msg = MessageRecord::new(&conv_id, None, "user", &input);

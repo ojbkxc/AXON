@@ -20,11 +20,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(config: AxonConfig, working_dir: std::path::PathBuf) -> anyhow::Result<Arc<Self>> {
-        let store = Store::open(
-            &config.storage.sqlite_path,
-            config.storage.max_connections,
-        )
-        .map_err(|e| anyhow::anyhow!("store init: {e}"))?;
+        let store = Store::open(&config.storage.sqlite_path, config.storage.max_connections)
+            .map_err(|e| anyhow::anyhow!("store init: {e}"))?;
 
         let gateway = EmbeddedGateway::from_config(&config)
             .map_err(|e| anyhow::anyhow!("gateway init: {e}"))?;

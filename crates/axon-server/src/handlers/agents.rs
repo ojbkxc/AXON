@@ -9,22 +9,22 @@ use serde_json::json;
 
 use axon_gateway::StreamEvent;
 use axon_protocol::{
-    AgentInfo, ErrorResponse, ErrorDetail, InvokeAgentRequest, InvokeAgentResponse,
-    ToolCallRecord,
+    AgentInfo, ErrorDetail, ErrorResponse, InvokeAgentRequest, InvokeAgentResponse, ToolCallRecord,
 };
 
 use crate::app::AppState;
 
 pub async fn list_agents(State(state): State<Arc<AppState>>) -> Response {
     let config = state.current_config();
-    let agents: Vec<AgentInfo> = config.agents.iter().map(AgentInfo::from_definition).collect();
+    let agents: Vec<AgentInfo> = config
+        .agents
+        .iter()
+        .map(AgentInfo::from_definition)
+        .collect();
     Json(agents).into_response()
 }
 
-pub async fn get_agent(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Response {
+pub async fn get_agent(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
     let config = state.current_config();
     match config.find_agent(&id) {
         Some(agent) => Json(AgentInfo::from_definition(agent)).into_response(),

@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use axon_core::{ChatMessage, TokenUsage};
 
-pub mod openai;
 pub mod axon;
+pub mod openai;
 
 pub use axon::*;
 pub use openai::*;

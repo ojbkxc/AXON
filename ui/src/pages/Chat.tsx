@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { AgentInfo, ConversationResponse, MessageResponse } from "../api/types";
+import type { ConversationResponse, MessageResponse } from "../api/types";
 import { useFetch } from "../hooks/useFetch";
 import { useAgentStream } from "../hooks/useAgentStream";
-import { ErrorBanner, EmptyState, PageHeader, Spinner } from "../components/ui";
+import { ErrorBanner, EmptyState, PageHeader } from "../components/ui";
 
 interface Turn {
   role: "user" | "assistant";

@@ -15,9 +15,17 @@ use axon_core::AxonConfig;
 use crate::app::AppState;
 
 #[derive(Parser, Debug)]
-#[command(name = "axon", version, about = "AXON — mobile multi-agent + AI gateway")]
+#[command(
+    name = "axon",
+    version,
+    about = "AXON — mobile multi-agent + AI gateway"
+)]
 struct Cli {
-    #[arg(long, default_value = "config.yaml", help = "Path to config file (yaml/json)")]
+    #[arg(
+        long,
+        default_value = "config.yaml",
+        help = "Path to config file (yaml/json)"
+    )]
     config: String,
     #[arg(long, help = "Override listen address")]
     addr: Option<String>,
@@ -96,16 +104,37 @@ fn build_router(state: Arc<AppState>) -> axum::Router {
     use axum::routing::{delete, get, post};
 
     let api = axum::Router::new()
-        .route("/v1/chat/completions", post(handlers::chat::chat_completions))
+        .route(
+            "/v1/chat/completions",
+            post(handlers::chat::chat_completions),
+        )
         .route("/v1/models", get(handlers::chat::list_models))
         .route("/v1/agents", get(handlers::agents::list_agents))
         .route("/v1/agents/:id", get(handlers::agents::get_agent))
-        .route("/v1/agents/:id/invoke", post(handlers::agents::invoke_agent))
-        .route("/v1/conversations", post(handlers::conversations::create_conversation))
-        .route("/v1/conversations", get(handlers::conversations::list_conversations))
-        .route("/v1/conversations/:id", get(handlers::conversations::get_conversation))
-        .route("/v1/conversations/:id", delete(handlers::conversations::delete_conversation))
-        .route("/v1/conversations/:id/messages", get(handlers::conversations::get_messages))
+        .route(
+            "/v1/agents/:id/invoke",
+            post(handlers::agents::invoke_agent),
+        )
+        .route(
+            "/v1/conversations",
+            post(handlers::conversations::create_conversation),
+        )
+        .route(
+            "/v1/conversations",
+            get(handlers::conversations::list_conversations),
+        )
+        .route(
+            "/v1/conversations/:id",
+            get(handlers::conversations::get_conversation),
+        )
+        .route(
+            "/v1/conversations/:id",
+            delete(handlers::conversations::delete_conversation),
+        )
+        .route(
+            "/v1/conversations/:id/messages",
+            get(handlers::conversations::get_messages),
+        )
         .route("/v1/tools", get(handlers::system::list_tools))
         .route("/v1/usage", get(handlers::system::usage_stats));
 

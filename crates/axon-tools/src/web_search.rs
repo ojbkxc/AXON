@@ -54,10 +54,9 @@ impl ToolProvider for WebSearchTool {
         input: serde_json::Value,
         _context: &ToolContext,
     ) -> Result<ToolResult> {
-        let query = input
-            .get("query")
-            .and_then(|q| q.as_str())
-            .ok_or_else(|| axon_core::AxonError::Tool("web_search: missing 'query' field".into()))?;
+        let query = input.get("query").and_then(|q| q.as_str()).ok_or_else(|| {
+            axon_core::AxonError::Tool("web_search: missing 'query' field".into())
+        })?;
 
         let max = input
             .get("max_results")
