@@ -61,10 +61,7 @@ pub async fn chat_completions(
     };
 
     if req.stream {
-        let stream_hold = reservation.map(|r| {
-            MultiReservation::new(vec![r])
-                .into_stream_hold()
-        });
+        let stream_hold = reservation.map(|r| MultiReservation::new(vec![r]).into_stream_hold());
 
         let stream = match gateway
             .chat_stream(&req.model, &req.messages, &options)

@@ -92,11 +92,7 @@ impl Limiter {
         self.store.add_tokens(key, tokens);
     }
 
-    pub async fn peek(
-        &self,
-        key: &str,
-        limits: &RateLimitConfig,
-    ) -> Option<RateLimitStatus> {
+    pub async fn peek(&self, key: &str, limits: &RateLimitConfig) -> Option<RateLimitStatus> {
         self.store.peek(key, limits).await
     }
 }

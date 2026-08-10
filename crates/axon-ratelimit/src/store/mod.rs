@@ -2,8 +2,8 @@
 
 //! Pluggable counter backend behind the [`crate::Limiter`].
 
-use axon_core::RateLimitConfig;
 use async_trait::async_trait;
+use axon_core::RateLimitConfig;
 
 use crate::error::RateLimitError;
 use crate::limiter::RateLimitStatus;

@@ -2,8 +2,8 @@
 
 //! In-process counter store — the default backend.
 
-use axon_core::{RateLimitConfig, RateLimitScope};
 use async_trait::async_trait;
+use axon_core::{RateLimitConfig, RateLimitScope};
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use std::sync::Arc;
