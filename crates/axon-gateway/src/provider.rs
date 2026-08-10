@@ -261,10 +261,81 @@ struct AnthropicRequest {
     model: String,
     max_tokens: u32,
     system: String,
-    messages: Vec<ChatMessage>,
+    messages: Vec<AnthropicMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
     stream: bool,
+}
+
+#[derive(Serialize)]
+struct AnthropicMessage {
+    role: String,
+    content: AnthropicContent,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum AnthropicContent {
+    Text(String),
+    Blocks(Vec<AnthropicContentBlock>),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type")]
+enum AnthropicContentBlock {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "tool_use")]
+    ToolUse {
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
+    #[serde(rename = "tool_result")]
+    ToolResult {
+        tool_use_id: String,
+        content: String,
+    },
+}
+
+fn convert_anthropic_messages(messages: &[ChatMessage]) -> Vec<AnthropicMessage> {
+    messages
+        .iter()
+        .map(|m| match m.role.as_str() {
+            "tool" => AnthropicMessage {
+                role: "user".into(),
+                content: AnthropicContent::Blocks(vec![AnthropicContentBlock::ToolResult {
+                    tool_use_id: m.tool_call_id.clone().unwrap_or_default(),
+                    content: m.content.clone(),
+                }]),
+            },
+            "assistant" if m.tool_calls.as_ref().is_some_and(|c| !c.is_empty()) => {
+                let mut blocks = Vec::new();
+                if !m.content.is_empty() {
+                    blocks.push(AnthropicContentBlock::Text {
+                        text: m.content.clone(),
+                    });
+                }
+                for tc in m.tool_calls.as_ref().unwrap() {
+                    let input: serde_json::Value = serde_json::from_str(&tc.function.arguments)
+                        .unwrap_or(serde_json::Value::Null);
+                    blocks.push(AnthropicContentBlock::ToolUse {
+                        id: tc.id.clone(),
+                        name: tc.function.name.clone(),
+                        input,
+                    });
+                }
+                AnthropicMessage {
+                    role: "assistant".into(),
+                    content: AnthropicContent::Blocks(blocks),
+                }
+            }
+            _ => AnthropicMessage {
+                role: m.role.clone(),
+                content: AnthropicContent::Text(m.content.clone()),
+            },
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -330,7 +401,7 @@ impl Provider for AnthropicProvider {
             model: model.into(),
             max_tokens: options.max_tokens.unwrap_or(4096),
             system,
-            messages: chat_msgs,
+            messages: convert_anthropic_messages(&chat_msgs),
             temperature: options.temperature,
             stream: false,
         };
@@ -414,7 +485,7 @@ impl Provider for AnthropicProvider {
             model: model.into(),
             max_tokens: options.max_tokens.unwrap_or(4096),
             system,
-            messages: chat_msgs,
+            messages: convert_anthropic_messages(&chat_msgs),
             temperature: options.temperature,
             stream: true,
         };
@@ -452,5 +523,105 @@ pub fn create_provider(
         "anthropic" => Ok(Box::new(AnthropicProvider::new(api_base, api_key))),
         "vertex" => Ok(Box::new(OpenAiProvider::new(api_base, api_key))),
         other => Err(AxonError::Config(format!("unknown provider type: {other}"))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axon_core::{ChatMessage, ToolCall, ToolCallFunction};
+
+    #[test]
+    fn test_convert_user_message() {
+        let msgs = vec![ChatMessage::user("hello")];
+        let result = convert_anthropic_messages(&msgs);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].role, "user");
+        match &result[0].content {
+            AnthropicContent::Text(t) => assert_eq!(t, "hello"),
+            _ => panic!("expected Text content"),
+        }
+    }
+
+    #[test]
+    fn test_convert_assistant_with_tool_calls() {
+        let mut msg = ChatMessage::assistant("Let me search.");
+        msg.tool_calls = Some(vec![ToolCall {
+            id: "call_1".into(),
+            call_type: "function".into(),
+            function: ToolCallFunction {
+                name: "web_search".into(),
+                arguments: r#"{"query":"rust"}"#.into(),
+            },
+        }]);
+        let result = convert_anthropic_messages(&[msg]);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].role, "assistant");
+        match &result[0].content {
+            AnthropicContent::Blocks(blocks) => {
+                assert_eq!(blocks.len(), 2);
+                match &blocks[0] {
+                    AnthropicContentBlock::Text { text } => assert_eq!(text, "Let me search."),
+                    _ => panic!("expected Text block"),
+                }
+                match &blocks[1] {
+                    AnthropicContentBlock::ToolUse { id, name, input } => {
+                        assert_eq!(id, "call_1");
+                        assert_eq!(name, "web_search");
+                        assert_eq!(input["query"], "rust");
+                    }
+                    _ => panic!("expected ToolUse block"),
+                }
+            }
+            _ => panic!("expected Blocks content"),
+        }
+    }
+
+    #[test]
+    fn test_convert_tool_result_message() {
+        let msg = ChatMessage::tool("search results", "call_1");
+        let result = convert_anthropic_messages(&[msg]);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].role, "user");
+        match &result[0].content {
+            AnthropicContent::Blocks(blocks) => {
+                assert_eq!(blocks.len(), 1);
+                match &blocks[0] {
+                    AnthropicContentBlock::ToolResult {
+                        tool_use_id,
+                        content,
+                    } => {
+                        assert_eq!(tool_use_id, "call_1");
+                        assert_eq!(content, "search results");
+                    }
+                    _ => panic!("expected ToolResult block"),
+                }
+            }
+            _ => panic!("expected Blocks content"),
+        }
+    }
+
+    #[test]
+    fn test_convert_assistant_empty_content_with_tool_calls() {
+        let mut msg = ChatMessage::assistant("");
+        msg.tool_calls = Some(vec![ToolCall {
+            id: "call_2".into(),
+            call_type: "function".into(),
+            function: ToolCallFunction {
+                name: "calc".into(),
+                arguments: "{}".into(),
+            },
+        }]);
+        let result = convert_anthropic_messages(&[msg]);
+        match &result[0].content {
+            AnthropicContent::Blocks(blocks) => {
+                assert_eq!(blocks.len(), 1);
+                match &blocks[0] {
+                    AnthropicContentBlock::ToolUse { name, .. } => assert_eq!(name, "calc"),
+                    _ => panic!("expected ToolUse block"),
+                }
+            }
+            _ => panic!("expected Blocks content"),
+        }
     }
 }
