@@ -7,7 +7,7 @@ use axum::Json;
 use futures::StreamExt;
 use serde_json::json;
 
-use axon_core::{ChatMessage, ChatOptions, TokenUsage};
+use axon_core::{ChatMessage, ChatOptions};
 use axon_gateway::StreamEvent;
 use axon_protocol::{
     ChatChoice, ChatChunkChoice, ChatCompletionChunk, ChatCompletionRequest,

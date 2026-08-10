@@ -85,8 +85,8 @@ pub async fn invoke_agent(
                 }
             };
 
-            let mut pinned = result;
-            while let Some(event) = pinned.next().await {
+            let mut pinned = Box::pin(result);
+            while let Some(event) = pinned.as_mut().next().await {
                 let payload = match &event {
                     StreamEvent::TextChunk { text } => json!({ "type": "text_chunk", "text": text }),
                     StreamEvent::ThoughtChunk { text } => json!({ "type": "thought_chunk", "text": text }),
