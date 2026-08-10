@@ -428,7 +428,13 @@ mod tests {
         assert!(json.contains("reasoning_tokens"));
         let de: TokenUsage = serde_json::from_str(&json).unwrap();
         assert_eq!(de.prompt_cache_hit_tokens, Some(80));
-        assert_eq!(de.completion_tokens_details.as_ref().unwrap().reasoning_tokens, Some(30));
+        assert_eq!(
+            de.completion_tokens_details
+                .as_ref()
+                .unwrap()
+                .reasoning_tokens,
+            Some(30)
+        );
     }
 
     #[test]

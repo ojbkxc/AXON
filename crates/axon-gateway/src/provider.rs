@@ -111,20 +111,18 @@ impl OpenAiUsage {
             prompt_tokens: self.prompt_tokens,
             completion_tokens: self.completion_tokens,
             total_tokens: self.total_tokens,
-            prompt_tokens_details: self
-                .prompt_tokens_details
-                .as_ref()
-                .map(|d| axon_core::PromptTokensDetails {
+            prompt_tokens_details: self.prompt_tokens_details.as_ref().map(|d| {
+                axon_core::PromptTokensDetails {
                     cached_tokens: d.cached_tokens,
-                }),
+                }
+            }),
             prompt_cache_hit_tokens: self.prompt_cache_hit_tokens,
             prompt_cache_miss_tokens: self.prompt_cache_miss_tokens,
-            completion_tokens_details: self
-                .completion_tokens_details
-                .as_ref()
-                .map(|d| axon_core::CompletionTokensDetails {
+            completion_tokens_details: self.completion_tokens_details.as_ref().map(|d| {
+                axon_core::CompletionTokensDetails {
                     reasoning_tokens: d.reasoning_tokens,
-                }),
+                }
+            }),
         }
     }
 }

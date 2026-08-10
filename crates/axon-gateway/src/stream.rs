@@ -84,9 +84,18 @@ fn parse_usage(usage: &serde_json::Value) -> TokenUsage {
             reasoning_tokens: Some(r as u32),
         });
     TokenUsage {
-        prompt_tokens: usage.get("prompt_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
-        completion_tokens: usage.get("completion_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
-        total_tokens: usage.get("total_tokens").and_then(|t| t.as_u64()).unwrap_or(0) as u32,
+        prompt_tokens: usage
+            .get("prompt_tokens")
+            .and_then(|t| t.as_u64())
+            .unwrap_or(0) as u32,
+        completion_tokens: usage
+            .get("completion_tokens")
+            .and_then(|t| t.as_u64())
+            .unwrap_or(0) as u32,
+        total_tokens: usage
+            .get("total_tokens")
+            .and_then(|t| t.as_u64())
+            .unwrap_or(0) as u32,
         prompt_tokens_details,
         prompt_cache_hit_tokens: usage
             .get("prompt_cache_hit_tokens")
