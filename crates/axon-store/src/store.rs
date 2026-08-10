@@ -405,12 +405,14 @@ pub struct MemoryEntry {
 }
 
 trait OptionalRow {
+    type Item;
     fn optional(self) -> rusqlite::Result<Option<Self::Item>>
     where
         Self: Sized;
 }
 
 impl<T> OptionalRow for rusqlite::Result<T> {
+    type Item = T;
     fn optional(self) -> rusqlite::Result<Option<T>> {
         match self {
             Ok(v) => Ok(Some(v)),

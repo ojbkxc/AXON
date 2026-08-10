@@ -49,4 +49,11 @@ impl From<std::io::Error> for AxonError {
     }
 }
 
+#[cfg(feature = "sqlite")]
+impl From<rusqlite::Error> for AxonError {
+    fn from(e: rusqlite::Error) -> Self {
+        AxonError::Storage(format!("sqlite: {e}"))
+    }
+}
+
 pub type Result<T> = std::result::Result<T, AxonError>;
