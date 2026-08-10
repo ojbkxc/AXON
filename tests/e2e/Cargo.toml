@@ -1,0 +1,14 @@
+[package]
+name = "axon-e2e"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+axon-server = { path = "../../crates/axon-server", default-features = false }
+axon-core = { path = "../../crates/axon-core" }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+tempfile = "3"
+serde_json = { workspace = true }

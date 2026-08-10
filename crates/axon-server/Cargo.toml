@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "axon_server"
+path = "src/lib.rs"
+
 [[bin]]
 name = "axon"
 path = "src/main.rs"

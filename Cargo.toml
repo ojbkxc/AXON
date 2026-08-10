@@ -8,6 +8,7 @@ members = [
     "crates/axon-runtime",
     "crates/axon-protocol",
     "crates/axon-server",
+    "tests/e2e",
 ]
 
 [workspace.package]
