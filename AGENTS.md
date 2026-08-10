@@ -297,7 +297,8 @@ AXON/
 - [x] `.github/workflows/ci.yml`：rust + ui 两 job。
 - [x] `include_dir!` 宏将 `ui/dist` 嵌入 axon-server 二进制（feature `embed-ui`，default 启用）+ axum 静态文件服务路由 `/ui` `/ui/` `/ui/*path`（mime 推断 + SPA fallback index.html）。
 - [x] 验收：`git push` 后 GitHub CI rust + ui 两 job 全绿（run 31384489805，rust 1m27s + ui 21s，2026-08-10）。浏览器打开 `http://localhost:8080/ui/` 由二进制内嵌静态资源服务（需运行 `axon --config config.example.yaml` 后实测）。
-- 其余 v0.6/v0.7/v0.8/v0.9/v1.0 见 `AXON_PROJECT_PLAN.md` §4.2。按需推进。
+- [x] **v0.6 可观测性**：tracing-subscriber 初始化（EnvFilter）+ `/metrics` Prometheus 文本输出（requests/tokens/duration per-model，从 store usage_stats）+ `/status /healthz /readyz` + 结构化 JSON 日志选项（`observability.log_format: plain|json`，CLI/env 可覆盖，main.rs 先加载 config 后 init tracing）。CI 全绿（run 31396860258）。
+- 其余 v0.7/v0.9/v1.0 见 `AXON_PROJECT_PLAN.md` §4.2。按需推进。
 
 ## 7. 编码约定（强制）
 
@@ -346,6 +347,7 @@ cd ui && pnpm build                    # 产物到 ui/dist，供 include_dir! �
 
 ## 9. 变更日志（追加新行，最新在上）
 
+- 2026-08-10 **v0.6 可观测性：结构化 JSON 日志选项**：axon-core ObservabilityConfig 加 `log_format: String`（"plain"|"json"，默认 plain）+ default_log_format()；axon-server main.rs 调整启动顺序为先加载 config 再 init tracing（config 加载失败用 eprintln 兜底），据 `config.observability.log_format` + `AXON_LOG_FORMAT` env 选 `.json()` 或 plain fmt；config.example.yaml 加 log_format 示例。CI 全绿（run 31396860258，1m18s）。至此 v0.6 可观测性基本完成（tracing + Prometheus /metrics + JSON 日志选项）。下一步：v0.7 高级路由（限流，复用 aisix-ratelimit）。
 - 2026-08-10 **P4 移动端适配完成**：交叉编译产物 axon 二进制 **5.1M**（远低于 30MB 目标 / 50MB 硬约束），APK `axon-release-unsigned.apk` **5.0M**。新增 `android/termux/install-termux.sh`（从 CI artifact 或源码安装 + 默认配置生成 + 启动提示）。P4 全部勾选（启动内存 < 150MB 待真机实测）。下一步：P6 可观测性（Prometheus 指标 + 结构化日志，复用 aisix telemetry.rs）或 P7 高级路由。
 - 2026-08-10 **v0.8 APK 流水线 CI 全绿**：android-apk.yml 经 4 次 push→据报错修复循环后全绿（run 31393481268，3m19s，artifact `axon-apk-arm64-v8a` 上传）。修复历程：(1) run #1 失败 Build APK（gradle，无日志因 api 不可达）→ 加 env ANDROID_HOME/local.properties/诊断 step/error-to-annotation；(2) run #2 失败 `checkReleaseDuplicateClasses`：kotlin-stdlib 1.8.22 与 kotlin-stdlib-jdk8 1.6.21 duplicate class（appcompat/webkit 传递依赖旧版）→ build.gradle 加 `configurations.all { resolutionStrategy.force }` 统一 1.8.22；(3) run #3 失败 `compileReleaseJavaWithJavac`：`android.R.drawable.stat_sys_data_done` 是 @hide 资源不在 compileSdk 34 public API → 改 `ic_dialog_info`（同时改 manifest `sym_def_app_icon`→`ic_dialog_info`）；(4) run #4 全绿。至此 v0.8 APK 流水线完成，产出 `AXON-v1.0.1-android-arm64-v8a.apk`。回写 §4/§6。
 - 2026-08-10 **v0.8 APK 流水线代码就绪 + 本地静态审查**：新增 `scripts/cross-android.sh`（cargo-ndk 交叉编译 aarch64-linux-android）+ `scripts/build-apk.sh`（gradle assembleRelease）+ `android/apk/` Gradle WebView 壳工程（AGP 8.5.2, arm64-v8a, Java17, MainActivity+AxonService 前台服务启动 axon 二进制 + WebView 加载 127.0.0.1:8080/ui/）+ `.github/workflows/android-apk.yml`（参照 RustSync：setup rust+NDK+cargo-ndk → build ui → cargo ndk 交叉编译 axon → 复制二进制+config 到 assets → setup-java 17 → gradle assembleRelease → 命名 AXON-v1.0.1-android-arm64-v8a.apk → 上传 artifact）。本地静态审查通过（bin name=axon、config.example.yaml、gradle.properties useAndroidX、AGP/Gradle/Java 版本兼容、NDK 路径）；去掉 android-apk.yml 的 continue-on-error 以符合 §R0.8（让失败真实暴露以便据报错修复）。**环境网络阻断**：github.com DNS 被解析到占位 IP 198.18.0.139（RFC 2544 段），gh token 亦失效，git push 10 次重试均失败。改动已 commit（e2d2ba4 + 去掉 continue-on-error），**待网络恢复后 git push 触发 android-apk.yml CI，据报错修复循环至产出 APK artifact**。回写 §3/§4/§6。
