@@ -97,7 +97,7 @@ public class AxonService extends Service {
         Notification notif = new Notification.Builder(this, CHANNEL)
             .setContentTitle("AXON")
             .setContentText("AXON gateway running")
-            .setSmallIcon(android.R.drawable.stat_sys_data_done)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .build();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

@@ -9,7 +9,7 @@
 
     <application
         android:label="AXON"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@android:drawable/ic_dialog_info"
         android:allowBackup="true"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
