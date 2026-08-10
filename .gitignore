@@ -1,0 +1,13 @@
+/target
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+/ui/dist
+/ui/node_modules
+/ui/package-lock.json
+.env
+.env.*
+*.apk
+*.keystore
+.codeartsdoer/

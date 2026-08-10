@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: test
+        run: cargo test --workspace
+
+      - name: build release
+        run: cargo build --release -p axon-server
+
+      - name: binary size check (< 50MB)
+        run: |
+          size=$(stat -c%s target/release/axon)
+          mb=$((size / 1024 / 1024))
+          echo "axon binary size: ${mb} MB (${size} bytes)"
+          if [ "$size" -gt 52428800 ]; then
+            echo "ERROR: binary ${mb} MB exceeds 50MB hard constraint"
+            exit 1
+          fi
+          echo "OK: binary within 50MB constraint"
+
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package.json
+
+      - name: install
+        run: npm install --no-audit --no-fund
+
+      - name: typecheck
+        run: npx tsc --noEmit
+
+      - name: build
+        run: npm run build
+
+      - name: upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist

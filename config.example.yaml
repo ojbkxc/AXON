@@ -1,0 +1,106 @@
+server:
+  addr: "0.0.0.0:8080"
+  web_ui_enabled: true
+  max_request_body_mb: 10
+  workers: 2
+
+gateway:
+  upstream_timeout_ms: 120000
+  stream_timeout_ms: 300000
+  retry_count: 2
+  retry_delay_ms: 1000
+  pool_max_idle_per_host: 5
+
+storage:
+  sqlite_path: "axon.db"
+  max_connections: 5
+
+observability:
+  log_level: "info"
+  metrics_enabled: true
+  access_log_enabled: true
+
+models:
+  - name: "gpt-4o"
+    provider: "openai"
+    model_name: "gpt-4o"
+    api_key_env: "OPENAI_API_KEY"
+    api_base: "https://api.openai.com/v1"
+
+  - name: "claude-sonnet"
+    provider: "anthropic"
+    model_name: "claude-sonnet-4-20250514"
+    api_key_env: "ANTHROPIC_API_KEY"
+    api_base: "https://api.anthropic.com"
+
+  - name: "deepseek-chat"
+    provider: "openai"
+    model_name: "deepseek-chat"
+    api_key_env: "DEEPSEEK_API_KEY"
+    api_base: "https://api.deepseek.com/v1"
+
+routes:
+  - name: "default"
+    strategy: "failover"
+    targets:
+      - model: "gpt-4o"
+      - model: "claude-sonnet"
+      - model: "deepseek-chat"
+
+agents:
+  - id: "researcher"
+    name: "Research Assistant"
+    description: "A research assistant that can search the web and summarize findings"
+    system_prompt: |
+      You are a research assistant. When the user asks a question, use the web_search
+      tool to find relevant information if needed, then provide a comprehensive and
+      accurate answer. Cite sources when referencing information.
+    model: "default"
+    tools:
+      - "web_search"
+      - "memory"
+    max_iterations: 5
+    temperature: 0.7
+
+  - id: "translator"
+    name: "Translator"
+    description: "A multi-language translation assistant"
+    system_prompt: |
+      You are a professional translation assistant. Translate the user's input into
+      the specified language. If no target language is specified, translate to English.
+      Preserve the original tone and formatting.
+    model: "gpt-4o"
+    tools: []
+    max_iterations: 1
+    temperature: 0.3
+
+  - id: "coder"
+    name: "Coding Assistant"
+    description: "A coding assistant that can execute code to verify answers"
+    system_prompt: |
+      You are a coding assistant. You can use the code_exec tool to execute code
+      and verify your answers. First explain the code, then execute it for verification.
+    model: "claude-sonnet"
+    tools:
+      - "code_exec"
+      - "memory"
+    max_iterations: 5
+    temperature: 0.5
+
+tools:
+  - name: "web_search"
+    kind: "web_search"
+    config:
+      max_results: 5
+
+  - name: "memory"
+    kind: "memory"
+    config:
+      namespace: "default"
+
+  - name: "code_exec"
+    kind: "code_exec"
+    config:
+      timeout_ms: 10000
+      allowed_languages: ["python", "javascript"]
+      max_output_chars: 10000

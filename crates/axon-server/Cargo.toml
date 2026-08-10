@@ -1,0 +1,41 @@
+[package]
+name = "axon-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "axon"
+path = "src/main.rs"
+
+[dependencies]
+axon-core = { path = "../axon-core" }
+axon-gateway = { path = "../axon-gateway" }
+axon-runtime = { path = "../axon-runtime" }
+axon-store = { path = "../axon-store" }
+axon-tools = { path = "../axon-tools" }
+axon-protocol = { path = "../axon-protocol" }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+hyper = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+futures = { workspace = true }
+async-stream = "0.8"
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+notify = "6"
+parking_lot = { workspace = true }
+arc-swap = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+include_dir = "0.7"
+
+[features]
+default = ["web-ui"]
+web-ui = []
+profiling = []
