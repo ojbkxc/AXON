@@ -8,6 +8,7 @@ publish = false
 [dependencies]
 axon-server = { path = "../../crates/axon-server", default-features = false }
 axon-core = { path = "../../crates/axon-core" }
+axum = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
 tempfile = "3"
