@@ -345,11 +345,11 @@ storage:
 observability:
   log_level: "debug"
 "#;
-        let path = "/tmp/axon_test_config.yaml";
-        std::fs::write(path, yaml).unwrap();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), yaml).unwrap();
+        let path = file.path().to_str().unwrap();
         let config = AxonConfig::from_file(path).unwrap();
         assert_eq!(config.server.addr, "127.0.0.1:9090");
         assert_eq!(config.gateway.upstream_timeout_ms, 60000);
-        std::fs::remove_file(path).ok();
     }
 }

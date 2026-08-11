@@ -36,6 +36,9 @@ pub fn spawn_watcher(state: Arc<AppState>, config_path: PathBuf) -> anyhow::Resu
     let dir = config_path.parent().unwrap_or(std::path::Path::new("."));
     watcher.watch(dir, RecursiveMode::NonRecursive)?;
 
-    std::mem::forget(watcher);
+    tokio::spawn(async move {
+        let _watcher = watcher;
+        std::future::pending::<()>().await;
+    });
     Ok(())
 }

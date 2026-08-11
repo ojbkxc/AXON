@@ -64,15 +64,7 @@ impl ToolProvider for WebSearchTool {
             .map(|m| m as usize)
             .unwrap_or(self.max_results);
 
-        let encoded_query: String = query
-            .chars()
-            .map(|c| match c {
-                'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
-                ' ' => "+".to_string(),
-                _ => format!("%{:02X}", c as u32),
-            })
-            .collect();
-
+        let encoded_query = encode_query(query);
         let url = format!("https://html.duckduckgo.com/html/?q={encoded_query}");
 
         let resp = self
@@ -168,6 +160,23 @@ fn extract_after<'a>(s: &'a str, marker: &str) -> Option<&'a str> {
     Some(&s[idx + marker.len()..])
 }
 
+fn encode_query(query: &str) -> String {
+    let mut out = String::with_capacity(query.len() * 3);
+    for c in query.chars() {
+        match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => out.push(c),
+            ' ' => out.push('+'),
+            _ => {
+                let mut buf = [0u8; 4];
+                for b in c.encode_utf8(&mut buf).as_bytes() {
+                    out.push_str(&format!("%{:02X}", b));
+                }
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,5 +247,36 @@ mod tests {
         "#;
         let results = parse_ddg_html(html, 2);
         assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_encode_query_ascii_kept() {
+        assert_eq!(encode_query("rust-lang"), "rust-lang");
+        assert_eq!(encode_query("a_b.c~d-e"), "a_b.c~d-e");
+    }
+
+    #[test]
+    fn test_encode_query_space_to_plus() {
+        assert_eq!(encode_query("hello world"), "hello+world");
+    }
+
+    #[test]
+    fn test_encode_query_ascii_punct() {
+        assert_eq!(encode_query("a&b=c"), "a%26b%3Dc");
+    }
+
+    #[test]
+    fn test_encode_query_chinese_utf8_bytes() {
+        assert_eq!(encode_query("中文"), "%E4%B8%AD%E6%96%87");
+    }
+
+    #[test]
+    fn test_encode_query_emoji_utf8_bytes() {
+        assert_eq!(encode_query("🦀"), "%F0%9F%A6%80");
+    }
+
+    #[test]
+    fn test_encode_query_mixed() {
+        assert_eq!(encode_query("Rust 锈"), "Rust+%E9%94%88");
     }
 }

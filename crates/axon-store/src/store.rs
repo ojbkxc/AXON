@@ -421,3 +421,164 @@ impl<T> OptionalRow for rusqlite::Result<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn open_test_store() -> (Arc<Store>, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let path_str = path.to_str().unwrap().to_string();
+        let store = Store::open(&path_str, 4).unwrap();
+        (store, dir)
+    }
+
+    #[test]
+    fn test_open_and_schema() {
+        let (_store, _dir) = open_test_store();
+    }
+
+    #[test]
+    fn test_conversation_create_get() {
+        let (store, _dir) = open_test_store();
+        let conv = store.create_conversation("agent1", Some("Test")).unwrap();
+        assert_eq!(conv.agent_id, "agent1");
+        assert_eq!(conv.title.as_deref(), Some("Test"));
+
+        let fetched = store.get_conversation(&conv.id).unwrap();
+        assert!(fetched.is_some());
+        assert_eq!(fetched.unwrap().id, conv.id);
+    }
+
+    #[test]
+    fn test_conversation_get_nonexistent() {
+        let (store, _dir) = open_test_store();
+        let fetched = store.get_conversation("nonexistent").unwrap();
+        assert!(fetched.is_none());
+    }
+
+    #[test]
+    fn test_conversation_list() {
+        let (store, _dir) = open_test_store();
+        store.create_conversation("a", None).unwrap();
+        store.create_conversation("b", None).unwrap();
+        let convs = store.list_conversations(10).unwrap();
+        assert_eq!(convs.len(), 2);
+    }
+
+    #[test]
+    fn test_conversation_delete_cascades() {
+        let (store, _dir) = open_test_store();
+        let conv = store.create_conversation("agent1", None).unwrap();
+
+        let msg = MessageRecord::new(&conv.id, None, "user", "hello");
+        store.add_message(&msg).unwrap();
+
+        store
+            .record_usage(&UsageRecord {
+                conversation_id: Some(conv.id.clone()),
+                agent_id: None,
+                model: None,
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+                duration_ms: 100,
+                timestamp: Utc::now().timestamp(),
+            })
+            .unwrap();
+
+        store.delete_conversation(&conv.id).unwrap();
+
+        assert!(store.get_conversation(&conv.id).unwrap().is_none());
+        assert!(store.get_messages(&conv.id).unwrap().is_empty());
+
+        let stats = store.get_usage_stats().unwrap();
+        assert_eq!(stats.total_requests, 0);
+    }
+
+    #[test]
+    fn test_message_add_get() {
+        let (store, _dir) = open_test_store();
+        let conv = store.create_conversation("agent1", None).unwrap();
+
+        let msg1 = MessageRecord::new(&conv.id, None, "user", "hello");
+        let msg1_id = msg1.id.clone();
+        store.add_message(&msg1).unwrap();
+
+        let msg2 = MessageRecord::new(&conv.id, Some(&msg1_id), "assistant", "hi there");
+        store.add_message(&msg2).unwrap();
+
+        let msgs = store.get_messages(&conv.id).unwrap();
+        assert_eq!(msgs.len(), 2);
+    }
+
+    #[test]
+    fn test_usage_record_and_stats() {
+        let (store, _dir) = open_test_store();
+        let conv = store.create_conversation("agent1", None).unwrap();
+
+        store
+            .record_usage(&UsageRecord {
+                conversation_id: Some(conv.id.clone()),
+                agent_id: Some("agent1".into()),
+                model: Some("gpt-4o".into()),
+                prompt_tokens: 100,
+                completion_tokens: 50,
+                total_tokens: 150,
+                duration_ms: 200,
+                timestamp: Utc::now().timestamp(),
+            })
+            .unwrap();
+
+        store
+            .record_usage(&UsageRecord {
+                conversation_id: Some(conv.id.clone()),
+                agent_id: Some("agent1".into()),
+                model: Some("gpt-4o".into()),
+                prompt_tokens: 30,
+                completion_tokens: 20,
+                total_tokens: 50,
+                duration_ms: 80,
+                timestamp: Utc::now().timestamp(),
+            })
+            .unwrap();
+
+        let stats = store.get_usage_stats().unwrap();
+        assert_eq!(stats.total_requests, 2);
+        assert_eq!(stats.total_tokens, 200);
+        assert_eq!(stats.total_duration_ms, 280);
+        assert_eq!(stats.by_model.len(), 1);
+        assert_eq!(stats.by_model[0].model, "gpt-4o");
+    }
+
+    #[test]
+    fn test_memory_crud() {
+        let (store, _dir) = open_test_store();
+
+        store.set_memory("key1", "value1", "ns1").unwrap();
+        let val = store.get_memory("key1", "ns1").unwrap();
+        assert!(val.is_some());
+        assert_eq!(val.unwrap(), "value1");
+
+        store.set_memory("key2", "value2", "ns1").unwrap();
+        let entries = store.list_memory("ns1").unwrap();
+        assert_eq!(entries.len(), 2);
+
+        store.delete_memory("key1", "ns1").unwrap();
+        assert!(store.get_memory("key1", "ns1").unwrap().is_none());
+        assert_eq!(store.list_memory("ns1").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_memory_namespace_isolation() {
+        let (store, _dir) = open_test_store();
+        store.set_memory("key", "v_a", "ns_a").unwrap();
+        store.set_memory("key", "v_b", "ns_b").unwrap();
+
+        let a = store.get_memory("key", "ns_a").unwrap().unwrap();
+        let b = store.get_memory("key", "ns_b").unwrap().unwrap();
+        assert_eq!(a, "v_a");
+        assert_eq!(b, "v_b");
+    }
+}

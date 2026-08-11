@@ -59,15 +59,6 @@ pub struct ChatResponse {
     pub finish_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ChatChunk {
-    Text { text: String },
-    ToolCall { tool_call: ToolCall },
-    Usage { usage: TokenUsage },
-    Done { finish_reason: Option<String> },
-}
-
 fn parse_usage(usage: &serde_json::Value) -> TokenUsage {
     let prompt_tokens_details = usage
         .get("prompt_tokens_details")
@@ -259,13 +250,19 @@ struct AnthropicStreamEvent {
     #[serde(default)]
     content_block: Option<AnthropicContentBlock>,
     #[serde(default)]
-    partial_json: Option<String>,
+    usage: Option<AnthropicUsageDelta>,
 }
 
 #[derive(Deserialize)]
 struct AnthropicDelta {
+    #[serde(rename = "type", default)]
+    delta_type: Option<String>,
     #[serde(default)]
     text: Option<String>,
+    #[serde(default)]
+    thinking: Option<String>,
+    #[serde(default)]
+    partial_json: Option<String>,
     #[serde(default)]
     stop_reason: Option<String>,
 }
@@ -280,6 +277,14 @@ struct AnthropicMessageStart {
 struct AnthropicUsageStart {
     #[serde(default)]
     input_tokens: u32,
+    #[serde(default)]
+    output_tokens: u32,
+}
+
+#[derive(Deserialize)]
+struct AnthropicUsageDelta {
+    #[serde(default)]
+    output_tokens: u32,
 }
 
 #[derive(Deserialize)]
@@ -324,17 +329,15 @@ pub fn parse_anthropic_sse(resp: reqwest::Response) -> impl Stream<Item = Stream
                     if let Ok(event) = serde_json::from_str::<AnthropicStreamEvent>(data) {
                         match event.event_type.as_str() {
                             "message_start" => {
-                                if let Some(msg) = event.message {
-                                if let Some(usage) = msg.usage {
+                                if let Some(usage) = event.message.as_ref().and_then(|m| m.usage.as_ref()) {
                                     yield StreamEvent::UsageUpdate {
                                         usage: TokenUsage {
                                             prompt_tokens: usage.input_tokens,
-                                            completion_tokens: 0,
-                                            total_tokens: usage.input_tokens,
+                                            completion_tokens: usage.output_tokens,
+                                            total_tokens: usage.input_tokens + usage.output_tokens,
                                             ..Default::default()
                                         },
                                     };
-                                }
                                 }
                             }
                             "content_block_start" => {
@@ -348,14 +351,26 @@ pub fn parse_anthropic_sse(resp: reqwest::Response) -> impl Stream<Item = Stream
                             }
                             "content_block_delta" => {
                                 if let Some(delta) = event.delta {
-                                    if let Some(text) = delta.text {
-                                        if !text.is_empty() {
-                                            yield StreamEvent::TextChunk { text };
+                                    let dt = delta.delta_type.as_deref().unwrap_or("");
+                                    if let Some(text) = delta.text.as_deref() {
+                                        if !text.is_empty() && (dt.is_empty() || dt == "text_delta") {
+                                            yield StreamEvent::TextChunk { text: text.into() };
                                         }
                                     }
-                                }
-                                if let Some(pj) = event.partial_json {
-                                    current_tool_args.push_str(&pj);
+                                    if let Some(thinking) = delta.thinking.as_deref() {
+                                        if !thinking.is_empty() {
+                                            yield StreamEvent::ThoughtChunk {
+                                                text: thinking.into(),
+                                                title: None,
+                                                signature: None,
+                                            };
+                                        }
+                                    }
+                                    if let Some(pj) = delta.partial_json.as_deref() {
+                                        if !pj.is_empty() {
+                                            current_tool_args.push_str(pj);
+                                        }
+                                    }
                                 }
                             }
                             "content_block_stop" => {
@@ -376,6 +391,18 @@ pub fn parse_anthropic_sse(resp: reqwest::Response) -> impl Stream<Item = Stream
                                 }
                             }
                             "message_delta" => {
+                                if let Some(usage) = event.usage.as_ref() {
+                                    if usage.output_tokens > 0 {
+                                        yield StreamEvent::UsageUpdate {
+                                            usage: TokenUsage {
+                                                prompt_tokens: 0,
+                                                completion_tokens: usage.output_tokens,
+                                                total_tokens: usage.output_tokens,
+                                                ..Default::default()
+                                            },
+                                        };
+                                    }
+                                }
                                 if let Some(delta) = event.delta {
                                     if let Some(reason) = delta.stop_reason {
                                         yield StreamEvent::Done { finish_reason: Some(reason) };

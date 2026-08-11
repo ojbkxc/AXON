@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
@@ -6,7 +8,7 @@ use futures::Stream;
 use parking_lot::RwLock;
 
 use axon_core::{
-    AxonError, ChatMessage, ChatOptions, ModelDefinition, Result, RouteDefinition, TokenUsage,
+    AxonError, ChatMessage, ChatOptions, ModelDefinition, Result, RouteDefinition,
 };
 
 use crate::provider::{create_provider, Provider};
@@ -31,6 +33,36 @@ impl GatewaySnapshot {
             providers: HashMap::new(),
         }
     }
+
+    fn from_config(config: &axon_core::AxonConfig) -> Result<Self> {
+        let mut models = HashMap::new();
+        let mut providers = HashMap::new();
+
+        for model in &config.models {
+            let api_key = model.resolve_api_key().ok_or_else(|| {
+                AxonError::Config(format!(
+                    "model '{}' has no api_key (neither api_key nor api_key_env resolved)",
+                    model.name
+                ))
+            })?;
+            let api_base = model.resolve_api_base();
+
+            let provider = create_provider(&model.provider, &api_base, &api_key)?;
+            providers.insert(model.name.clone(), Arc::from(provider));
+            models.insert(model.name.clone(), model.clone());
+        }
+
+        let mut routes = HashMap::new();
+        for route in &config.routes {
+            routes.insert(route.name.clone(), route.clone());
+        }
+
+        Ok(GatewaySnapshot {
+            models,
+            routes,
+            providers,
+        })
+    }
 }
 
 impl EmbeddedGateway {
@@ -42,34 +74,7 @@ impl EmbeddedGateway {
     }
 
     pub fn from_config(config: &axon_core::AxonConfig) -> Result<Arc<Self>> {
-        let mut models = HashMap::new();
-        let mut providers = HashMap::new();
-
-        for model in &config.models {
-            let api_key = model.resolve_api_key().ok_or_else(|| {
-                AxonError::Config(format!(
-                    "model '{}' has no api_key (neither api_key nor api_key_env resolved)",
-                    model.name
-                ))
-            })?;
-            let api_base = model.resolve_api_base();
-
-            let provider = create_provider(&model.provider, &api_base, &api_key)?;
-            providers.insert(model.name.clone(), Arc::from(provider));
-            models.insert(model.name.clone(), model.clone());
-        }
-
-        let mut routes = HashMap::new();
-        for route in &config.routes {
-            routes.insert(route.name.clone(), route.clone());
-        }
-
-        let snapshot = GatewaySnapshot {
-            models,
-            routes,
-            providers,
-        };
-
+        let snapshot = GatewaySnapshot::from_config(config)?;
         Ok(Arc::new(EmbeddedGateway {
             snapshot: ArcSwap::from_pointee(snapshot),
             round_robin: RwLock::new(HashMap::new()),
@@ -77,33 +82,7 @@ impl EmbeddedGateway {
     }
 
     pub fn reload(&self, config: &axon_core::AxonConfig) -> Result<()> {
-        let mut models = HashMap::new();
-        let mut providers = HashMap::new();
-
-        for model in &config.models {
-            let api_key = model.resolve_api_key().ok_or_else(|| {
-                AxonError::Config(format!(
-                    "model '{}' has no api_key (neither api_key nor api_key_env resolved)",
-                    model.name
-                ))
-            })?;
-            let api_base = model.resolve_api_base();
-
-            let provider = create_provider(&model.provider, &api_base, &api_key)?;
-            providers.insert(model.name.clone(), Arc::from(provider));
-            models.insert(model.name.clone(), model.clone());
-        }
-
-        let mut routes = HashMap::new();
-        for route in &config.routes {
-            routes.insert(route.name.clone(), route.clone());
-        }
-
-        let snapshot = GatewaySnapshot {
-            models,
-            routes,
-            providers,
-        };
+        let snapshot = GatewaySnapshot::from_config(config)?;
         self.snapshot.store(Arc::new(snapshot));
         Ok(())
     }
@@ -136,7 +115,13 @@ impl EmbeddedGateway {
                 if total == 0 {
                     return Some(route.targets[0].model.clone());
                 }
-                let r = (chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0) as u32) % total;
+                let mut rr = self.round_robin.write();
+                let counter = rr.entry(route_name.to_string()).or_insert(0);
+                *counter = counter.wrapping_add(1);
+                let mut hasher = DefaultHasher::new();
+                route_name.hash(&mut hasher);
+                counter.hash(&mut hasher);
+                let r = (hasher.finish() as u32) % total;
                 let mut acc = 0;
                 for target in &route.targets {
                     acc += target.weight;
@@ -239,10 +224,4 @@ pub struct ModelInfo {
     pub id: String,
     pub provider: String,
     pub model_name: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct GatewayStats {
-    pub total_requests: u64,
-    pub total_tokens: TokenUsage,
 }

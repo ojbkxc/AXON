@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use chrono::Utc;
 use futures::StreamExt;
@@ -38,6 +39,7 @@ impl AgentExecutor {
         input: &str,
         conversation_id: Option<&str>,
     ) -> Result<InvokeResult> {
+        let started = Instant::now();
         let conv_id = match conversation_id {
             Some(id) => id.to_string(),
             None => {
@@ -167,7 +169,7 @@ impl AgentExecutor {
             prompt_tokens: total_usage.prompt_tokens,
             completion_tokens: total_usage.completion_tokens,
             total_tokens: total_usage.total_tokens,
-            duration_ms: 0,
+            duration_ms: started.elapsed().as_millis() as u64,
             timestamp: Utc::now().timestamp(),
         })?;
 
@@ -223,6 +225,7 @@ impl AgentExecutor {
         let parent_id_stream = parent_id.clone();
 
         Ok(async_stream::stream! {
+            let started = Instant::now();
             let mut pipeline = crate::pipeline::GenerationPipeline::new(
                 &gateway,
                 &tools,
@@ -279,7 +282,7 @@ impl AgentExecutor {
                 prompt_tokens: total_usage.prompt_tokens,
                 completion_tokens: total_usage.completion_tokens,
                 total_tokens: total_usage.total_tokens,
-                duration_ms: 0,
+                duration_ms: started.elapsed().as_millis() as u64,
                 timestamp: Utc::now().timestamp(),
             });
         })
