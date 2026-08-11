@@ -270,19 +270,19 @@ struct AnthropicRequest {
 #[derive(Serialize)]
 struct AnthropicMessage {
     role: String,
-    content: AnthropicContent,
+    content: AnthropicMsgContent,
 }
 
 #[derive(Serialize)]
 #[serde(untagged)]
-enum AnthropicContent {
+enum AnthropicMsgContent {
     Text(String),
-    Blocks(Vec<AnthropicContentBlock>),
+    Blocks(Vec<AnthropicMsgBlock>),
 }
 
 #[derive(Serialize)]
 #[serde(tag = "type")]
-enum AnthropicContentBlock {
+enum AnthropicMsgBlock {
     #[serde(rename = "text")]
     Text { text: String },
     #[serde(rename = "tool_use")]
@@ -304,7 +304,7 @@ fn convert_anthropic_messages(messages: &[ChatMessage]) -> Vec<AnthropicMessage>
         .map(|m| match m.role.as_str() {
             "tool" => AnthropicMessage {
                 role: "user".into(),
-                content: AnthropicContent::Blocks(vec![AnthropicContentBlock::ToolResult {
+                content: AnthropicMsgContent::Blocks(vec![AnthropicMsgBlock::ToolResult {
                     tool_use_id: m.tool_call_id.clone().unwrap_or_default(),
                     content: m.content.clone(),
                 }]),
@@ -312,14 +312,14 @@ fn convert_anthropic_messages(messages: &[ChatMessage]) -> Vec<AnthropicMessage>
             "assistant" if m.tool_calls.as_ref().is_some_and(|c| !c.is_empty()) => {
                 let mut blocks = Vec::new();
                 if !m.content.is_empty() {
-                    blocks.push(AnthropicContentBlock::Text {
+                    blocks.push(AnthropicMsgBlock::Text {
                         text: m.content.clone(),
                     });
                 }
                 for tc in m.tool_calls.as_ref().unwrap() {
                     let input: serde_json::Value = serde_json::from_str(&tc.function.arguments)
                         .unwrap_or(serde_json::Value::Null);
-                    blocks.push(AnthropicContentBlock::ToolUse {
+                    blocks.push(AnthropicMsgBlock::ToolUse {
                         id: tc.id.clone(),
                         name: tc.function.name.clone(),
                         input,
@@ -327,12 +327,12 @@ fn convert_anthropic_messages(messages: &[ChatMessage]) -> Vec<AnthropicMessage>
                 }
                 AnthropicMessage {
                     role: "assistant".into(),
-                    content: AnthropicContent::Blocks(blocks),
+                    content: AnthropicMsgContent::Blocks(blocks),
                 }
             }
             _ => AnthropicMessage {
                 role: m.role.clone(),
-                content: AnthropicContent::Text(m.content.clone()),
+                content: AnthropicMsgContent::Text(m.content.clone()),
             },
         })
         .collect()
@@ -538,7 +538,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].role, "user");
         match &result[0].content {
-            AnthropicContent::Text(t) => assert_eq!(t, "hello"),
+            AnthropicMsgContent::Text(t) => assert_eq!(t, "hello"),
             _ => panic!("expected Text content"),
         }
     }
@@ -558,14 +558,14 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].role, "assistant");
         match &result[0].content {
-            AnthropicContent::Blocks(blocks) => {
+            AnthropicMsgContent::Blocks(blocks) => {
                 assert_eq!(blocks.len(), 2);
                 match &blocks[0] {
-                    AnthropicContentBlock::Text { text } => assert_eq!(text, "Let me search."),
+                    AnthropicMsgBlock::Text { text } => assert_eq!(text, "Let me search."),
                     _ => panic!("expected Text block"),
                 }
                 match &blocks[1] {
-                    AnthropicContentBlock::ToolUse { id, name, input } => {
+                    AnthropicMsgBlock::ToolUse { id, name, input } => {
                         assert_eq!(id, "call_1");
                         assert_eq!(name, "web_search");
                         assert_eq!(input["query"], "rust");
@@ -584,10 +584,10 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].role, "user");
         match &result[0].content {
-            AnthropicContent::Blocks(blocks) => {
+            AnthropicMsgContent::Blocks(blocks) => {
                 assert_eq!(blocks.len(), 1);
                 match &blocks[0] {
-                    AnthropicContentBlock::ToolResult {
+                    AnthropicMsgBlock::ToolResult {
                         tool_use_id,
                         content,
                     } => {
@@ -614,10 +614,10 @@ mod tests {
         }]);
         let result = convert_anthropic_messages(&[msg]);
         match &result[0].content {
-            AnthropicContent::Blocks(blocks) => {
+            AnthropicMsgContent::Blocks(blocks) => {
                 assert_eq!(blocks.len(), 1);
                 match &blocks[0] {
-                    AnthropicContentBlock::ToolUse { name, .. } => assert_eq!(name, "calc"),
+                    AnthropicMsgBlock::ToolUse { name, .. } => assert_eq!(name, "calc"),
                     _ => panic!("expected ToolUse block"),
                 }
             }
