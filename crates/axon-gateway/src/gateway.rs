@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -7,9 +7,7 @@ use arc_swap::ArcSwap;
 use futures::Stream;
 use parking_lot::RwLock;
 
-use axon_core::{
-    AxonError, ChatMessage, ChatOptions, ModelDefinition, Result, RouteDefinition,
-};
+use axon_core::{AxonError, ChatMessage, ChatOptions, ModelDefinition, Result, RouteDefinition};
 
 use crate::provider::{create_provider, Provider};
 use crate::stream::{ChatResponse, StreamEvent};
