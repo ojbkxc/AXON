@@ -6,4 +6,4 @@ pub mod stream;
 
 pub use gateway::{EmbeddedGateway, ModelInfo};
 pub use provider::Provider;
-pub use stream::{ChatChunk, ChatResponse, StreamEvent};
+pub use stream::{ChatResponse, StreamEvent};
