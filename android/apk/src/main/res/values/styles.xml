@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Axon" parent="Theme.AppCompat.Light.DarkActionBar">
+        <item name="colorPrimary">#2563EB</item>
+        <item name="colorPrimaryDark">#1E40AF</item>
+        <item name="colorAccent">#3B82F6</item>
+        <item name="android:windowNoTitle">false</item>
+    </style>
+</resources>

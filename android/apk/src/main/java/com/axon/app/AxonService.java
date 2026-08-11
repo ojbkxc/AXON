@@ -36,15 +36,16 @@ public class AxonService extends Service {
 
     private void runAxon() {
         try {
-            File bin = extractAsset("axon", true);
+            File bin = findNativeBinary();
             File cfg = extractAsset("config.yaml", false);
-            if (bin == null) {
-                Log.e(TAG, "axon binary missing from assets");
+            if (bin == null || !bin.exists() || !bin.canExecute()) {
+                Log.e(TAG, "axon binary not found or not executable");
                 return;
             }
             File workDir = getFilesDir();
             String configPath = (cfg != null) ? cfg.getAbsolutePath() : new File(workDir, "config.yaml").getAbsolutePath();
 
+            Log.i(TAG, "launching axon: " + bin.getAbsolutePath() + " --config " + configPath);
             ProcessBuilder pb = new ProcessBuilder(
                 bin.getAbsolutePath(),
                 "--config", configPath,
@@ -53,6 +54,7 @@ public class AxonService extends Service {
             pb.directory(workDir);
             pb.redirectErrorStream(true);
             pb.environment().put("AXON_LOG_LEVEL", "info");
+            pb.environment().put("RUST_LOG", "info");
             axonProcess = pb.start();
 
             InputStream is = axonProcess.getInputStream();
@@ -66,6 +68,21 @@ public class AxonService extends Service {
         } catch (Exception e) {
             Log.e(TAG, "failed to run axon", e);
         }
+    }
+
+    private File findNativeBinary() {
+        String nativeDir = getApplicationInfo().nativeLibraryDir;
+        File bin = new File(nativeDir, "libaxon.so");
+        Log.i(TAG, "nativeLibraryDir=" + nativeDir + " binary=" + bin.getAbsolutePath());
+        if (bin.exists() && bin.canExecute()) {
+            return bin;
+        }
+        File legacy = new File(getFilesDir(), "axon");
+        if (legacy.exists()) {
+            Log.w(TAG, "using legacy binary from filesDir (may fail on Android 10+)");
+            return legacy;
+        }
+        return bin;
     }
 
     private File extractAsset(String name, boolean executable) {
@@ -100,10 +117,14 @@ public class AxonService extends Service {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .build();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-        } else {
-            startForeground(NOTIF_ID, notif);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            } else {
+                startForeground(NOTIF_ID, notif);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "startForeground failed", e);
         }
     }
 
