@@ -80,10 +80,11 @@ impl Store {
             CREATE INDEX IF NOT EXISTS idx_usage_model ON usage_records(model);
 
             CREATE TABLE IF NOT EXISTS memory (
-                key TEXT PRIMARY KEY,
+                key TEXT NOT NULL,
                 value TEXT NOT NULL,
-                namespace TEXT DEFAULT 'default',
-                updated_at INTEGER NOT NULL
+                namespace TEXT NOT NULL DEFAULT 'default',
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (key, namespace)
             );
             "#,
         )?;
